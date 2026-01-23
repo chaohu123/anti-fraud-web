@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Launch AntiFraudApplication",
+            "request": "launch",
+            "mainClass": "com.xxx.antifraud.AntiFraudApplication",
+            "projectName": "antifraud-backend",
+            "args": "",
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

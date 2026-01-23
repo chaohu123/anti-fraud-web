@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Spring Boot - AntiFraudApplication",
+            "request": "launch",
+            "mainClass": "com.xxx.antifraud.AntiFraudApplication",
+            "projectName": "antifraud-backend",
+            "args": "",
+            "envFile": "${workspaceFolder}/backend/.env",
+            "cwd": "${workspaceFolder}/backend"
+        }
+    ]
+}

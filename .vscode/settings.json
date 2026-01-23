@@ -1,0 +1,19 @@
+{
+    "java.configuration.updateBuildConfiguration": "automatic",
+    "java.compile.nullAnalysis.mode": "automatic",
+    "java.configuration.runtimes": [],
+    "maven.executable.path": "mvn",
+    "java.project.sourcePaths": [
+        "backend/src/main/java"
+    ],
+    "java.project.outputPath": "backend/target/classes",
+    "java.project.referencedLibraries": [
+        "backend/target/**/*.jar"
+    ],
+    "files.exclude": {
+        "**/.classpath": true,
+        "**/.project": true,
+        "**/.settings": true,
+        "**/.factorypath": true
+    }
+}

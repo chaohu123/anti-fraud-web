@@ -1,0 +1,24 @@
+diff --git a/node_modules/sass-embedded/dist/lib/src/legacy/index.js b/node_modules/sass-embedded/dist/lib/src/legacy/index.js
+index 49e399b..e00bf98 100644
+--- a/node_modules/sass-embedded/dist/lib/src/legacy/index.js
++++ b/node_modules/sass-embedded/dist/lib/src/legacy/index.js
+@@ -20,9 +20,6 @@ function render(options, callback) {
+     try {
+         options = adjustOptions(options);
+         const start = Date.now();
+-        (0, deprecations_1.warnForHostSideDeprecation)('The legacy JS API is deprecated and will be removed in ' +
+-            'Dart Sass 2.0.0.\n\n' +
+-            'More info: https://sass-lang.com/d/legacy-js-api', deprecations_1.deprecations['legacy-js-api'], options);
+         const compileSass = isStringOptions(options)
+             ? (0, compile_1.compileStringAsync)(options.data, convertStringOptions(options, false))
+             : (0, compile_1.compileAsync)(options.file, convertOptions(options, false));
+@@ -38,9 +35,6 @@ function renderSync(options) {
+     const start = Date.now();
+     try {
+         options = adjustOptions(options);
+-        (0, deprecations_1.warnForHostSideDeprecation)('The legacy JS API is deprecated and will be removed in ' +
+-            'Dart Sass 2.0.0.\n\n' +
+-            'More info: https://sass-lang.com/d/legacy-js-api', deprecations_1.deprecations['legacy-js-api'], options);
+         const result = isStringOptions(options)
+             ? (0, compile_1.compileString)(options.data, convertStringOptions(options, true))
+             : (0, compile_1.compile)(options.file, convertOptions(options, true));

@@ -1,0 +1,51 @@
+[
+  {
+    "id": 1,
+    "text": "收到未知链接会直接点击吗？",
+    "dimension": "info",
+    "weight": 1.2,
+    "type": "single",
+    "options": [
+      { "label": "经常", "value": 3 },
+      { "label": "偶尔", "value": 2 },
+      { "label": "从不", "value": 0 }
+    ]
+  },
+  {
+    "id": 2,
+    "text": "听到高收益理财推销，会立刻转账吗？",
+    "dimension": "finance",
+    "weight": 1.5,
+    "type": "single",
+    "options": [
+      { "label": "容易心动", "value": 3 },
+      { "label": "会核实", "value": 1 },
+      { "label": "直接拒绝", "value": 0 }
+    ]
+  },
+  {
+    "id": 3,
+    "text": "陌生人自称公检法，要求提供验证码时？",
+    "dimension": "info",
+    "weight": 2,
+    "type": "single",
+    "options": [
+      { "label": "立刻配合", "value": 3 },
+      { "label": "犹豫", "value": 1 },
+      { "label": "拒绝并核验", "value": 0 }
+    ]
+  },
+  {
+    "id": 4,
+    "text": "你认为自己容易在哪些情况下做出冲动转账决定？（可多选）",
+    "dimension": "psych",
+    "weight": 1.3,
+    "type": "multi",
+    "options": [
+      { "label": "看到“高收益”“稳赚不赔”宣传", "value": 2 },
+      { "label": "被对方不断催促/恐吓", "value": 1 },
+      { "label": "朋友/群里都在说“已经赚到钱”", "value": 1 }
+    ]
+  }
+]
+

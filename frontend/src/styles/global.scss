@@ -1,0 +1,41 @@
+@import './theme.css';
+
+// 全局布局微调与通用工具类
+.text-muted {
+  color: var(--af-muted);
+}
+
+.card-section-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+/* 统一圆角/阴影观感 */
+.el-card {
+  border-radius: 12px;
+}
+
+/* 常用浅色面板（替代各页面重复的 #f8fafc） */
+.af-soft-panel {
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--af-soft);
+}
+
+/* 统一按钮组间距 */
+.af-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* 页面头部标题行：左右分布/可折行 */
+.af-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
