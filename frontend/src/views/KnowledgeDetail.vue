@@ -121,12 +121,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Document, ChatLineRound, Warning, Lock, Connection, CircleCheck, Check } from '@element-plus/icons-vue';
 import http from '../api/http';
 import { useKnowledgeStore } from '../store/knowledge';
 import { useUserStore } from '../stores/user';
+import { useAchievementStore } from '../store/achievement';
 import { ElMessage } from 'element-plus';
 
 type KnowledgeDetail = {
@@ -149,10 +150,22 @@ const loading = ref(false);
 const error = ref('');
 const knowledgeStore = useKnowledgeStore();
 const userStore = useUserStore();
+const achievementStore = useAchievementStore();
+
+// 浏览时间跟踪
+let viewStartTime: number | null = null;
+let viewTimer: ReturnType<typeof setTimeout> | null = null;
+const VIEW_DURATION = 30000; // 30秒（毫秒）
+let isMarkedAsRead = false; // 防止重复标记
 
 onMounted(() => {
   knowledgeStore.hydrate();
+  achievementStore.hydrate();
   loadDetail();
+});
+
+onUnmounted(() => {
+  stopViewTracking();
 });
 
 function loadDetail() {
@@ -164,6 +177,7 @@ function loadDetail() {
 
   loading.value = true;
   error.value = '';
+  isMarkedAsRead = false; // 重置标记状态
 
   http
     .get(`/knowledge/${id}`)
@@ -199,7 +213,86 @@ function loadDetail() {
     })
     .finally(() => {
       loading.value = false;
+      // 详情加载完成后，如果未标记为已学，开始计时
+      if (detail.value && !knowledgeStore.isRead(detail.value.id)) {
+        startViewTracking();
+      }
     });
+}
+
+// 开始浏览时间跟踪
+function startViewTracking() {
+  // 如果已经标记为已学，不启动计时
+  if (detail.value && knowledgeStore.isRead(detail.value.id)) {
+    return;
+  }
+
+  stopViewTracking(); // 先清除之前的计时器
+  viewStartTime = Date.now();
+  isMarkedAsRead = false;
+
+  // 设置30秒后自动标记
+  viewTimer = setTimeout(() => {
+    if (detail.value && !isMarkedAsRead && !knowledgeStore.isRead(detail.value.id)) {
+      autoMarkAsRead();
+    }
+  }, VIEW_DURATION);
+}
+
+// 停止浏览时间跟踪
+function stopViewTracking() {
+  if (viewTimer) {
+    clearTimeout(viewTimer);
+    viewTimer = null;
+  }
+  viewStartTime = null;
+}
+
+// 自动标记为已学
+async function autoMarkAsRead() {
+  if (!detail.value || isMarkedAsRead) {
+    return;
+  }
+
+  const id = detail.value.id;
+  
+  // 检查是否已经学习过（防止重复添加经验）
+  const wasAlreadyRead = knowledgeStore.isRead(id);
+  
+  isMarkedAsRead = true;
+  knowledgeStore.markRead(id);
+
+  // 如果是首次学习，添加经验值
+  if (!wasAlreadyRead) {
+    const expResult = achievementStore.addExp(50);
+    if (expResult.leveledUp) {
+      ElMessage.success({
+        message: `恭喜升级！获得50经验值，当前等级：${expResult.newLevel}级`,
+        duration: 3000,
+      });
+    } else {
+      ElMessage.success(`已自动标记为已学习，获得50经验值`);
+    }
+    // 检查成就
+    achievementStore.checkAchievements();
+  }
+
+  // 同步到后端
+  if (userStore.userId) {
+    try {
+      await http.post(`/knowledge/${id}/learn`, null, {
+        params: { userId: userStore.userId, progress: 100 },
+      });
+      if (wasAlreadyRead) {
+        ElMessage.success('已自动标记为已学习');
+      }
+    } catch {
+      // 静默失败，不影响用户体验
+      console.warn('同步学习记录失败');
+    }
+  }
+
+  stopViewTracking();
 }
 
 function formatContent(content: string): string {
@@ -244,14 +337,42 @@ function goToTraining() {
 
 async function toggleLearn(id: number) {
   const willMark = !knowledgeStore.isRead(id);
+  const wasAlreadyRead = knowledgeStore.isRead(id);
+  
   knowledgeStore.toggleRead(id);
+
+  // 如果标记为已学，停止计时器
+  if (willMark) {
+    stopViewTracking();
+    isMarkedAsRead = true;
+    
+    // 如果是首次学习，添加经验值
+    if (!wasAlreadyRead) {
+      const expResult = achievementStore.addExp(50);
+      if (expResult.leveledUp) {
+        ElMessage.success({
+          message: `恭喜升级！获得50经验值，当前等级：${expResult.newLevel}级`,
+          duration: 3000,
+        });
+      } else {
+        ElMessage.success(`已标记为已学习，获得50经验值`);
+      }
+      // 检查成就
+      achievementStore.checkAchievements();
+    }
+  } else {
+    // 如果取消标记，重新开始计时
+    startViewTracking();
+  }
 
   if (willMark && userStore.userId) {
     try {
       await http.post(`/knowledge/${id}/learn`, null, {
         params: { userId: userStore.userId, progress: 100 },
       });
-      ElMessage.success('已同步学习记录');
+      if (wasAlreadyRead) {
+        ElMessage.success('已同步学习记录');
+      }
     } catch {
       ElMessage.warning('同步学习记录失败（不影响本地标记）');
     }

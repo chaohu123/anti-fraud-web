@@ -15,6 +15,7 @@ public class UserListVO {
     private String phone;
     private Integer level; // 等级（默认 1）
     private Integer exp; // 经验值（默认 0）
+    private String avatar; // 头像URL
     private String riskLevel; // 风险等级：LOW/MEDIUM/HIGH
     private String createdAt; // 注册时间
 
@@ -25,6 +26,7 @@ public class UserListVO {
         vo.setNickname(user.getNickname());
         vo.setEmail(user.getEmail());
         vo.setPhone(user.getPhone());
+        vo.setAvatar(user.getAvatar());
         vo.setLevel(1); // 默认等级
         vo.setExp(0); // 默认经验值
         vo.setRiskLevel(user.getRiskLevel() != null ? 

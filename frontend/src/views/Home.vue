@@ -27,9 +27,10 @@
               <div class="metric-label">风险等级</div>
               <el-tag :type="riskTagType" effect="light" size="large" round>{{ riskLabel }}</el-tag>
             </div>
-            <div class="metric">
+            <div class="metric metric-click" @click="goLearnedKnowledge">
               <div class="metric-label">已学习知识</div>
               <div class="metric-value">{{ knowledge.readCount }}</div>
+              <div class="metric-hint">点击查看已学习</div>
             </div>
           </div>
           <div class="hero-illustration">
@@ -52,7 +53,14 @@
           <div class="section-title">数据概览</div>
         </div>
         <div class="overview">
-          <el-card v-for="card in overviewCards" :key="card.title" shadow="hover" class="overview-card">
+          <el-card
+            v-for="card in overviewCards"
+            :key="card.title"
+            shadow="hover"
+            class="overview-card"
+            :class="{ 'overview-card-click': !!(card as any).to }"
+            @click="(card as any).to && $router.push((card as any).to)"
+          >
             <div class="overview-icon" :class="card.type">
               <component :is="card.icon" />
             </div>
@@ -98,7 +106,7 @@
           <div class="growth-content">
             <div class="growth-item">
               <div class="growth-label">当前等级</div>
-              <el-tag type="primary" size="large" round>{{ user.riskLevel || 'low' }}</el-tag>
+              <el-tag type="primary" size="large" round>{{ riskLabel }}</el-tag>
             </div>
             <div class="growth-item">
               <div class="growth-label">已获勋章</div>
@@ -109,12 +117,31 @@
                 <span v-if="!user.badges.length" class="text-muted">暂无勋章</span>
               </div>
             </div>
-            <div class="growth-item">
-              <div class="growth-label">推荐下一步</div>
-              <div class="growth-next">
-                <el-button type="primary" link @click="$router.push('/train')">继续识别训练</el-button>
-                <el-button type="success" link @click="$router.push('/knowledge')">学习知识库</el-button>
+          </div>
+        </el-card>
+        <!-- 推荐学习内容（与左侧核心功能视觉对齐） -->
+        <div class="section-header recommend-header">
+          <div class="section-title">推荐学习内容</div>
+        </div>
+        <el-card shadow="hover" class="recommend">
+          <div class="recommend-list">
+            <div
+              v-for="item in recommendedLearning"
+              :key="item.title"
+              class="recommend-item"
+            >
+              <div class="recommend-main">
+                <div class="recommend-title">{{ item.title }}</div>
+                <div class="recommend-desc">{{ item.desc }}</div>
               </div>
+              <el-button
+                type="primary"
+                text
+                size="small"
+                @click="$router.push(item.to)"
+              >
+                {{ item.actionText }}
+              </el-button>
             </div>
           </div>
         </el-card>
@@ -125,17 +152,30 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useRouter } from 'vue-router';
 import { ArrowRight, Lock, DataAnalysis, Files, MagicStick } from '@element-plus/icons-vue';
 import { useUserStore } from '../stores/user';
 import { useKnowledgeStore } from '../store/knowledge';
 
+const router = useRouter();
 const user = useUserStore();
 const knowledge = useKnowledgeStore();
 
 const riskLabel = computed(() => {
-  if (!user.riskLevel) return '低';
-  const map: Record<string, string> = { low: '低', medium: '中', high: '高' };
-  return map[user.riskLevel] ?? user.riskLevel;
+  const raw: any = (user as any).riskLevel;
+  if (raw == null || raw === '') return '低';
+  // 兼容历史数据/后端枚举：low/medium/high、LOW/MEDIUM/HIGH、0/1/2、1/2/3
+  const normalized = String(raw).toLowerCase();
+  const map: Record<string, string> = {
+    low: '低',
+    medium: '中',
+    high: '高',
+    '0': '低',
+    '1': '中',
+    '2': '高',
+    '3': '高',
+  };
+  return map[normalized] ?? '低';
 });
 
 const riskTagType = computed(() => {
@@ -168,8 +208,13 @@ const overviewCards = computed(() => [
     sub: '累计标记已学的知识点',
     icon: Files,
     type: 'info',
+    to: '/knowledge/learned',
   },
 ]);
+
+function goLearnedKnowledge() {
+  router.push('/knowledge/learned');
+}
 
 const entries = [
   {
@@ -191,6 +236,69 @@ const entries = [
     to: '/knowledge',
   },
 ];
+
+const recommendedLearning = computed(() => {
+  const risk = riskLabel.value;
+  const items: { title: string; desc: string; to: string; actionText: string }[] = [];
+
+  if (risk === '高') {
+    items.push(
+      {
+        title: '优先完成一次风险测评',
+        desc: '当前风险较高，建议先进行完整测评，获取个性化防骗建议。',
+        to: '/assessment',
+        actionText: '去测评',
+      },
+      {
+        title: '系统学习常见高危诈骗套路',
+        desc: '从“资金转账类”“冒充公检法”等专题开始，巩固基础防骗意识。',
+        to: '/knowledge',
+        actionText: '去学习',
+      },
+    );
+  } else if (risk === '中') {
+    items.push(
+      {
+        title: '针对性补齐薄弱场景',
+        desc: '从最近做错较多的训练题型入手，查漏补缺，降低真实受骗概率。',
+        to: '/train',
+        actionText: '继续训练',
+      },
+      {
+        title: '结合知识库做巩固复习',
+        desc: '选取近30天更新的知识内容，保持对新型诈骗的敏感度。',
+        to: '/knowledge',
+        actionText: '去复习',
+      },
+    );
+  } else {
+    items.push(
+      {
+        title: '保持训练频率，巩固成果',
+        desc: '每周完成 2–3 组识别训练，持续强化识别直觉。',
+        to: '/train',
+        actionText: '开始训练',
+      },
+      {
+        title: '挑战进阶场景与专题',
+        desc: '尝试更复杂、多步骤的诈骗剧本，进一步提高综合防护能力。',
+        to: '/knowledge',
+        actionText: '查看专题',
+      },
+    );
+  }
+
+  if (knowledge.readCount < 5) {
+    items.push({
+      title: '从基础知识开始入门',
+      desc: '先完成 5 篇基础防骗知识学习，打好认知地基。',
+      to: '/knowledge',
+      actionText: '从基础开始',
+    });
+  }
+
+  return items;
+});
 </script>
 
 <style scoped>
@@ -404,6 +512,16 @@ const entries = [
   transition: all 0.3s ease;
 }
 
+.metric-click {
+  cursor: pointer;
+}
+
+.metric-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
 .metric:hover {
   background: rgba(255, 255, 255, 0.25);
   transform: translateY(-2px);
@@ -440,8 +558,6 @@ const entries = [
   display: flex;
   flex-direction: column;
   gap: 16px;
-  position: sticky;
-  top: 20px;
 }
 
 /* 章节标题 */
@@ -454,7 +570,7 @@ const entries = [
   font-size: 22px;
   color: var(--af-text);
   position: relative;
-  padding-left: 16px;
+  padding-left: 24px;
 }
 
 .section-title::before {
@@ -484,6 +600,10 @@ const entries = [
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 16px;
   border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.overview-card-click {
+  cursor: pointer;
 }
 
 .overview-card:hover {
@@ -697,6 +817,57 @@ const entries = [
   color: var(--af-muted);
   font-size: 14px;
   font-style: italic;
+}
+
+/* 推荐学习内容 */
+.recommend-header {
+  margin-top: 40px;
+}
+
+.recommend {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 0;
+}
+
+.recommend :deep(.el-card__body) {
+  padding: 20px 22px;
+}
+
+.recommend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.recommend-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.recommend-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.recommend-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--af-text);
+  margin-bottom: 4px;
+}
+
+.recommend-desc {
+  font-size: 13px;
+  color: var(--af-muted);
+  line-height: 1.6;
+}
+
+.recommend :deep(.el-button) {
+  white-space: nowrap;
 }
 
 /* 响应式设计 */

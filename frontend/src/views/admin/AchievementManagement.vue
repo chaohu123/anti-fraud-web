@@ -12,6 +12,8 @@ const dialogTitle = ref('新增成就');
 const isEdit = ref(false);
 const currentId = ref<number | null>(null);
 const selectedRows = ref<any[]>([]);
+const batchMode = ref(false);
+const tableRef = ref<any>();
 
 // 搜索和筛选
 const searchKeyword = ref('');
@@ -77,7 +79,11 @@ const fetchAchievements = async () => {
     }
 
     const resp = await http.get('/admin/achievements', { params });
-    if (resp.data?.content) {
+    // 后端返回格式: { data: { content: [], total: number } }
+    if (resp.data?.data?.content) {
+      tableData.value = resp.data.data.content;
+      pagination.value.total = resp.data.data.total || 0;
+    } else if (resp.data?.content) {
       tableData.value = resp.data.content;
       pagination.value.total = resp.data.total || 0;
     } else {
@@ -163,7 +169,17 @@ const handleSubmit = async () => {
         };
 
         if (isEdit.value && currentId.value) {
-          await http.put(`/admin/achievements/${currentId.value}`, data);
+          // 编辑时，确保数据格式正确
+          const updateData = {
+            name: data.name,
+            description: data.description,
+            condition: data.condition,
+            conditionValue: data.conditionValue,
+            rewardExp: data.rewardExp,
+            icon: data.icon,
+            status: data.status,
+          };
+          await http.put(`/admin/achievements/${currentId.value}`, updateData);
           ElMessage.success('更新成功');
         } else {
           await http.post('/admin/achievements', data);
@@ -218,29 +234,36 @@ const handleSelectionChange = (selection: any[]) => {
   selectedRows.value = selection;
 };
 
-// 批量删除
-const handleBatchDelete = async () => {
+const enterBatchDeleteMode = () => {
+  batchMode.value = true;
+  selectedRows.value = [];
+  tableRef.value?.clearSelection?.();
+};
+
+const cancelBatchDelete = () => {
+  batchMode.value = false;
+  selectedRows.value = [];
+  tableRef.value?.clearSelection?.();
+};
+
+const confirmBatchDelete = async () => {
   if (selectedRows.value.length === 0) {
     ElMessage.warning('请选择要删除的成就');
     return;
   }
 
   try {
-    await ElMessageBox.confirm(
-      `确定要删除选中的 ${selectedRows.value.length} 个成就吗？`,
-      '提示',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning',
-      }
-    );
+    await ElMessageBox.confirm('确认删除所选数据吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    });
 
     try {
       const ids = selectedRows.value.map((row) => row.id);
       await http.delete('/admin/achievements/batch', { data: { ids } });
       ElMessage.success('删除成功');
-      selectedRows.value = [];
+      cancelBatchDelete();
       fetchAchievements();
     } catch (error) {
       ElMessage.error('删除失败');
@@ -262,21 +285,11 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="achievement-management">
-    <el-card>
+  <div class="achievement-management admin-page">
+    <el-card class="management-card">
       <template #header>
         <div class="card-header">
           <span>成就规则管理</span>
-          <div class="header-actions">
-            <el-button
-              v-if="selectedRows.length > 0"
-              type="danger"
-              @click="handleBatchDelete"
-            >
-              批量删除 ({{ selectedRows.length }})
-            </el-button>
-            <el-button type="primary" @click="handleAdd">新增成就</el-button>
-          </div>
         </div>
       </template>
 
@@ -323,16 +336,28 @@ onMounted(() => {
         </el-select>
         <el-button type="primary" @click="handleSearch">搜索</el-button>
         <el-button @click="handleReset">重置</el-button>
+        <el-button type="primary" @click="handleAdd">新增成就</el-button>
+        <template v-if="!batchMode">
+          <el-button type="danger" @click="enterBatchDeleteMode">批量删除</el-button>
+        </template>
+        <template v-else>
+          <el-button type="danger" :disabled="selectedRows.length === 0" @click="confirmBatchDelete">
+            确认删除 ({{ selectedRows.length }})
+          </el-button>
+          <el-button @click="cancelBatchDelete">取消删除</el-button>
+        </template>
       </div>
 
       <el-table
+        ref="tableRef"
         v-loading="loading"
         :data="tableData"
         border
         stripe
+        class="data-table"
         @selection-change="handleSelectionChange"
       >
-        <el-table-column type="selection" width="55" />
+        <el-table-column v-if="batchMode" type="selection" width="55" />
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="name" label="成就名称" width="150" />
         <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
@@ -373,8 +398,14 @@ onMounted(() => {
     </el-card>
 
     <!-- 新增/编辑对话框 -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="600px" @close="resetForm">
-      <el-form ref="formRef" :model="form" :rules="formRules" label-width="100px">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      width="600px"
+      :close-on-click-modal="false"
+      @close="resetForm"
+    >
+      <el-form ref="formRef" :model="form" :rules="formRules" label-width="120px" class="dialog-form">
         <el-form-item label="成就名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入成就名称" />
         </el-form-item>
@@ -438,35 +469,6 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .achievement-management {
-  .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-
-    .header-actions {
-      display: flex;
-      gap: 12px;
-    }
-  }
-
-  .filter-bar {
-    display: flex;
-    align-items: center;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .pagination-wrapper {
-    margin-top: 20px;
-    display: flex;
-    justify-content: flex-end;
-  }
-
-  .form-tip {
-    font-size: 12px;
-    color: #909399;
-    margin-top: 4px;
-  }
+  // 继承 admin-page 样式
 }
 </style>

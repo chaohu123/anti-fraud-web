@@ -226,13 +226,17 @@ function resetInteraction() {
 }
 
 function loadLocalRecords(): TrainRecord[] {
-  return loadJson<TrainRecord[]>('af_training_records', []);
+  const uid = userStore.userId;
+  const key = uid ? `af_training_records_u_${uid}` : 'af_training_records_guest';
+  return loadJson<TrainRecord[]>(key, []);
 }
 
 function appendLocalRecord(record: TrainRecord) {
-  const list = loadLocalRecords();
+  const uid = userStore.userId;
+  const key = uid ? `af_training_records_u_${uid}` : 'af_training_records_guest';
+  const list = loadJson<TrainRecord[]>(key, []);
   list.unshift(record);
-  saveJson('af_training_records', list.slice(0, 200));
+  saveJson(key, list.slice(0, 200));
 }
 
 function normalizeFromBackend(item: any, idx: number): TrainingCase {

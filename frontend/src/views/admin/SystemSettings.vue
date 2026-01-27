@@ -100,8 +100,8 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="system-settings">
-    <el-card>
+  <div class="system-settings admin-page">
+    <el-card class="management-card">
       <template #header>
         <span>系统设置</span>
       </template>
@@ -169,7 +169,14 @@ onMounted(() => {
         </el-form-item>
 
         <el-form-item>
-          <el-button type="primary" :loading="loading" @click="handleSubmit">保存设置</el-button>
+          <el-button
+            type="primary"
+            :loading="loading"
+            class="admin-action-btn"
+            @click="handleSubmit"
+          >
+            保存设置
+          </el-button>
           <el-button @click="handleReset">重置</el-button>
         </el-form-item>
       </el-form>
@@ -179,11 +186,11 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .system-settings {
-  .form-tip {
-    font-size: 12px;
-    color: #909399;
-    margin-top: 4px;
-    margin-left: 8px;
+  :deep(.el-divider__text) {
+    font-weight: 600;
+    color: #606266;
+    background: #fff;
+    padding: 0 16px;
   }
 }
 </style>

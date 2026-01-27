@@ -17,6 +17,15 @@ public interface KnowledgeService extends IService<AntiFraudArticle> {
 
     KnowledgeDetailVO getDetail(Long id);
 
+    /**
+     * 记录一次学习行为并返回当前整体学习进度
+     */
     LearningProgressVO learn(Long articleId, Long userId, Integer progress);
+
+    /**
+     * 仅查询用户当前的学习进度与已完成的知识ID列表
+     */
+    LearningProgressVO getProgress(Long userId);
 }
+
 

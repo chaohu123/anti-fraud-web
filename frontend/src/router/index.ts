@@ -3,10 +3,10 @@ import { loadJson } from '../utils/storage';
 import Home from '../views/Home.vue';
 import Train from '../views/Training.vue';
 import Assessment from '../views/Assessment.vue';
-import Report from '../views/Report.vue';
+import ReportDetail from '../views/ReportDetail.vue';
 import Knowledge from '../views/Knowledge.vue';
+import LearnedKnowledge from '../views/LearnedKnowledge.vue';
 import KnowledgeDetail from '../views/KnowledgeDetail.vue';
-import Profile from '../views/Profile.vue';
 import UserCenter from '../views/UserCenter.vue';
 import Admin from '../views/Admin.vue';
 import Achievement from '../views/Achievement.vue';
@@ -27,10 +27,13 @@ const routes: RouteRecordRaw[] = [
   { path: '/', name: 'home', component: Home },
   { path: '/train', name: 'train', component: Train },
   { path: '/assessment', name: 'assessment', component: Assessment },
-  { path: '/report', name: 'report', component: Report },
+  { path: '/report', redirect: '/assessment' }, // 重定向到测评页
+  { path: '/report/:id', name: 'report-detail', component: ReportDetail },
   { path: '/knowledge', name: 'knowledge', component: Knowledge },
+  { path: '/knowledge/learned', name: 'knowledge-learned', component: LearnedKnowledge },
   { path: '/knowledge/:id', name: 'knowledge-detail', component: KnowledgeDetail },
-  { path: '/profile', name: 'profile', component: Profile, meta: { requiresAuth: true } },
+  // 兼容旧路径：/profile 直接跳转到新版个人中心 /user-center
+  { path: '/profile', redirect: '/user-center' },
   { path: '/user-center', name: 'user-center', component: UserCenter },
   { path: '/achievement', name: 'achievement', component: Achievement },
   {
@@ -96,9 +99,10 @@ const router = createRouter({
 });
 
 router.beforeEach((to) => {
-  const user = loadJson<{ userId?: number | null; username?: string | null }>('af_user', {} as any);
-  const isAuthed = !!user?.userId;
-  const isAdmin = (user?.username || '').toLowerCase() === 'admin';
+  // 使用会话 key 判断当前登录身份，避免读取按用户分桶的数据
+  const session = loadJson<{ userId?: number | null; username?: string | null }>('af_user_session', {} as any);
+  const isAuthed = !!session?.userId;
+  const isAdmin = (session?.username || '').toLowerCase() === 'admin';
 
   const requiresAuth = !!to.meta?.requiresAuth;
   const requiresAdmin = !!to.meta?.requiresAdmin;

@@ -18,6 +18,9 @@ public class UserInfoVO {
     @Schema(description = "昵称")
     private String nickname;
 
+    @Schema(description = "头像URL")
+    private String avatar;
+
     @Schema(description = "当前风险等级：0=低风险, 1=中风险, 2=高风险")
     private String riskLevel;
 }

@@ -1,8 +1,13 @@
 import { defineStore } from 'pinia';
 import { loadJson, saveJson } from '../utils/storage';
+import http from '../api/http';
 import { useUserStore } from '../stores/user';
 import { useKnowledgeStore } from './knowledge';
 import { useAssessmentStore } from './assessment';
+
+function getAchievementStorageKey(userId: number | null | undefined) {
+  return userId ? `af_achievement_u_${userId}` : 'af_achievement_guest';
+}
 
 export type AchievementCategory = 'training' | 'learning' | 'assessment' | 'special';
 
@@ -27,6 +32,7 @@ export interface Achievement {
 
 export const useAchievementStore = defineStore('achievement', {
   state: () => ({
+    storageKey: 'af_achievement_guest',
     level: 1, // 当前等级
     exp: 0, // 当前经验值
     totalExp: 0, // 累计经验值
@@ -42,10 +48,10 @@ export const useAchievementStore = defineStore('achievement', {
     
     // 当前等级经验进度百分比
     expProgress(): number {
-      const currentLevelExp = (this.level - 1) * 100;
-      const expInCurrentLevel = this.exp - currentLevelExp;
-      const expNeeded = this.expForNextLevel - currentLevelExp;
-      return Math.min(100, Math.max(0, (expInCurrentLevel / expNeeded) * 100));
+      // exp 在 addExp() 中会在升级时扣减阈值，因此这里的 exp 表示“当前等级已获得经验”
+      // 进度应为：当前经验 / 当前等级升级所需经验
+      const needed = this.expForNextLevel || 1;
+      return Math.min(100, Math.max(0, (this.exp / needed) * 100));
     },
 
     // 等级称号
@@ -77,8 +83,9 @@ export const useAchievementStore = defineStore('achievement', {
   },
 
   actions: {
-    hydrate() {
-      const data = loadJson('af_achievement', {
+    async hydrate(userId?: number | null) {
+      this.storageKey = getAchievementStorageKey(userId ?? null);
+      const data = loadJson(this.storageKey, {
         level: 1,
         exp: 0,
         totalExp: 0,
@@ -89,12 +96,19 @@ export const useAchievementStore = defineStore('achievement', {
       this.exp = data.exp ?? 0;
       this.totalExp = data.totalExp ?? 0;
       this.unlockedAchievements = new Set(data.unlockedAchievements || []);
-      this.initAchievements();
+
+      // 优先尝试从后端加载成就配置，失败则回退到本地默认配置
+      const loadedFromBackend = await this.loadFromBackendConfig().catch(() => false);
+      if (!loadedFromBackend) {
+        this.initAchievements();
+      }
+      // 确保已解锁列表只包含当前成就集合中的合法 ID
+      this.sanitizeUnlocked();
       this.checkAchievements();
     },
 
     persist() {
-      saveJson('af_achievement', {
+      saveJson(this.storageKey, {
         level: this.level,
         exp: this.exp,
         totalExp: this.totalExp,
@@ -103,7 +117,150 @@ export const useAchievementStore = defineStore('achievement', {
       });
     },
 
-    // 初始化成就列表
+    clear(userId?: number | null) {
+      const key = getAchievementStorageKey(userId ?? null);
+      try {
+        localStorage.removeItem(key);
+      } catch {
+        // ignore
+      }
+      if (key === this.storageKey) {
+        this.level = 1;
+        this.exp = 0;
+        this.totalExp = 0;
+        this.achievements = [];
+        this.unlockedAchievements = new Set<string>();
+      }
+    },
+
+    // 清理不存在于当前成就列表中的“脏”已解锁ID，避免统计显示异常
+    sanitizeUnlocked() {
+      const validIds = new Set(this.achievements.map((a) => a.id));
+      this.unlockedAchievements = new Set(
+        Array.from(this.unlockedAchievements).filter((id) => validIds.has(id))
+      );
+    },
+
+    // 从后端成就规则表加载配置（管理员端维护）
+    async loadFromBackendConfig(): Promise<boolean> {
+      try {
+        // 直接复用管理员成就列表接口，只取启用状态的规则
+        const resp = await http.get('/admin/achievements', {
+          params: {
+            page: 1,
+            size: 100,
+            status: 'ACTIVE',
+          },
+        });
+        const records =
+          resp.data?.data?.content ??
+          resp.data?.content ??
+          resp.data ??
+          [];
+
+        if (!Array.isArray(records) || records.length === 0) {
+          return false;
+        }
+
+        // 将后端成就规则映射为前端成就模型
+        const mapped: Achievement[] = records.map((raw: any, index: number) => {
+          const id = String(raw.id ?? `server_${index}`);
+          const name = raw.name ?? '未命名成就';
+          const description = raw.description ?? '';
+          const conditionType = String(raw.condition || raw.conditionType || '').toUpperCase();
+          const conditionValue = Number(raw.conditionValue ?? 0) || 1;
+          const rewardExp = Number(raw.rewardExp ?? 0) || 0;
+          const icon = raw.icon || '🏆';
+
+          // 后端条件类型（condition_type） → 前端分类与条件
+          let category: AchievementCategory = 'special';
+          let type: Achievement['condition']['type'] = 'special';
+          let key: string | undefined;
+
+          switch (conditionType) {
+            // 训练相关
+            case 'TRAINING_COUNT':
+            case 'TRAINING_CORRECT':
+              category = 'training';
+              type = 'training';
+              if (conditionType === 'TRAINING_CORRECT') {
+                key = 'training_correct';
+              }
+              break;
+
+            // 学习相关
+            case 'LEARNING_COUNT':
+              category = 'learning';
+              type = 'learning';
+              break;
+
+            // 测评相关
+            case 'ASSESSMENT_COMPLETE':
+              category = 'assessment';
+              type = 'assessment';
+              break;
+            case 'RISK_LEVEL_UP':
+              category = 'assessment';
+              type = 'assessment';
+              key = 'risk_level_up';
+              break;
+
+            // 特殊 / 全局统计类
+            case 'TOTAL_EXP':
+              category = 'special';
+              type = 'special';
+              key = 'total_exp';
+              break;
+            case 'LOGIN_STREAK':
+              category = 'special';
+              type = 'special';
+              key = 'login_streak';
+              break;
+            case 'SPECIAL_ALL':
+              category = 'special';
+              type = 'special';
+              key = 'all_categories';
+              break;
+            case 'LEVEL_REACH':
+              category = 'special';
+              type = 'special';
+              key = 'level';
+              break;
+
+            default:
+              // 未识别类型统一归为特殊成就，仅展示不影响逻辑
+              category = 'special';
+              type = 'special';
+          }
+
+          return {
+            id,
+            name,
+            description,
+            category,
+            icon,
+            expReward: rewardExp,
+            condition: {
+              type,
+              target: conditionValue,
+              key,
+            },
+            status: 'locked',
+            progress: 0,
+          };
+        });
+
+        this.achievements = mapped;
+        // 后端重新下发规则后同步清理一次已解锁ID
+        this.sanitizeUnlocked();
+        return true;
+      } catch {
+        // 接口不可用时保持静默，回退到本地内置成就
+        return false;
+      }
+    },
+
+    // 初始化成就列表（本地内置规则）
     initAchievements() {
       if (this.achievements.length > 0) return; // 已初始化
 
@@ -265,17 +422,34 @@ export const useAchievementStore = defineStore('achievement', {
 
         switch (achievement.condition.type) {
           case 'training':
+            // 训练相关成就：目前只统计训练次数
             current = userStore.trainingCount;
             break;
           case 'learning':
+            // 学习相关成就：使用已学习知识数
             current = knowledgeStore.readCount;
             break;
           case 'assessment':
             if (achievement.condition.key === 'low_risk') {
+              // 特殊：获得低风险评级
               current = userStore.riskLevel === 'low' ? 1 : 0;
               target = 1;
+            } else if (achievement.condition.key === 'risk_level_up') {
+              // 风险等级提升：简单约定为“最近一次风险评分优于历史平均”
+              const history = userStore.riskHistory;
+              if (history.length >= 2) {
+                const latest = history[history.length - 1].score;
+                const avg =
+                  history.slice(0, -1).reduce((sum, it) => sum + it.score, 0) /
+                  (history.length - 1);
+                current = latest < avg ? 1 : 0;
+                target = 1;
+              } else {
+                current = 0;
+                target = 1;
+              }
             } else {
-              // 统计测评次数（从历史记录）
+              // 默认按测评次数统计
               current = userStore.riskHistory.length;
             }
             break;
@@ -295,6 +469,12 @@ export const useAchievementStore = defineStore('achievement', {
                 .some((a) => this.unlockedAchievements.has(a.id));
               current = hasTraining && hasLearning && hasAssessment ? 1 : 0;
               target = 1;
+            } else if (achievement.condition.key === 'total_exp') {
+              // 累计经验值成就
+              current = this.totalExp;
+            } else if (achievement.condition.key === 'login_streak') {
+              // 登录连击目前前端未精确统计，这里先占位为 0，方便后续扩展
+              current = 0;
             }
             break;
         }

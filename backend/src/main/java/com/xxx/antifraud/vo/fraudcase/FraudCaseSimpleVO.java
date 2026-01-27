@@ -22,5 +22,11 @@ public class FraudCaseSimpleVO {
 
     @Schema(description = "提示/摘要")
     private String hint;
+
+    @Schema(description = "案例内容")
+    private String content;
+
+    @Schema(description = "判定结果：fraud/safe")
+    private String answer;
 }
 

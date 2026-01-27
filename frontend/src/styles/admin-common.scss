@@ -1,0 +1,233 @@
+// 管理员页面通用样式
+.admin-page {
+  .page-header {
+    margin-bottom: 24px;
+
+    .page-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #303133;
+      margin: 0 0 8px 0;
+    }
+
+    .page-description {
+      font-size: 14px;
+      color: #909399;
+      margin: 0;
+    }
+  }
+
+  .management-card {
+    border-radius: 12px;
+    border: none;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s;
+
+    &:hover {
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+    }
+
+    :deep(.el-card__header) {
+      padding: 20px 24px;
+      border-bottom: 1px solid #f0f0f0;
+      background: linear-gradient(135deg, #fafafa 0%, #ffffff 100%);
+
+      .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+
+        .header-actions {
+          display: flex;
+          gap: 12px;
+        }
+      }
+    }
+
+    :deep(.el-card__body) {
+      padding: 24px;
+    }
+  }
+
+  .filter-bar {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    padding: 16px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    flex-wrap: wrap;
+    gap: 12px;
+
+    .el-input,
+    .el-select {
+      transition: all 0.3s;
+
+      &:hover {
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+      }
+    }
+  }
+
+  .data-table {
+    :deep(.el-table) {
+      border-radius: 8px;
+      overflow: hidden;
+
+      .el-table__header {
+        th {
+          background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+          color: #606266;
+          font-weight: 600;
+          border-bottom: 2px solid #e4e7ed;
+        }
+      }
+
+      .el-table__body {
+        tr {
+          transition: all 0.2s;
+
+          &:hover {
+            background: linear-gradient(135deg, #f5f7fa 0%, #ffffff 100%);
+            transform: scale(1.01);
+          }
+        }
+
+        td {
+          border-bottom: 1px solid #f0f0f0;
+        }
+      }
+
+      .el-table__row {
+        cursor: pointer;
+      }
+    }
+  }
+
+  .pagination-wrapper {
+    margin-top: 24px;
+    padding: 16px;
+    background: #fff;
+    border-radius: 8px;
+    display: flex;
+    width: 100%;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  }
+
+  .dialog-form {
+    :deep(.el-form-item__label) {
+      font-weight: 500;
+      color: #606266;
+    }
+
+    :deep(.el-input),
+    :deep(.el-select),
+    :deep(.el-textarea) {
+      .el-input__wrapper,
+      .el-select__wrapper {
+        border-radius: 6px;
+        transition: all 0.3s;
+
+        &:hover {
+          box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+        }
+      }
+    }
+
+    .form-tip {
+      font-size: 12px;
+      color: #909399;
+      margin-top: 4px;
+      line-height: 1.5;
+    }
+  }
+
+  .empty-state {
+    padding: 60px 20px;
+    text-align: center;
+    color: #909399;
+
+    .empty-icon {
+      font-size: 64px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    .empty-text {
+      font-size: 14px;
+    }
+  }
+
+  .loading-overlay {
+    position: relative;
+    min-height: 200px;
+
+    .loading-content {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      color: #909399;
+    }
+  }
+}
+
+// 按钮样式优化
+.admin-action-btn {
+  border-radius: 6px;
+  transition: all 0.3s;
+  font-weight: 500;
+
+  &.el-button--primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+    }
+  }
+
+  &.el-button--danger {
+    background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+    border: none;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(245, 101, 101, 0.4);
+    }
+  }
+}
+
+// 标签样式优化
+.admin-tag {
+  border-radius: 4px;
+  font-weight: 500;
+  padding: 4px 12px;
+}
+
+// 响应式设计
+@media (max-width: 768px) {
+  .admin-page {
+    .filter-bar {
+      flex-direction: column;
+      align-items: stretch;
+
+      .el-input,
+      .el-select {
+        width: 100% !important;
+      }
+    }
+
+    .pagination-wrapper {
+      justify-content: center;
+    }
+  }
+}

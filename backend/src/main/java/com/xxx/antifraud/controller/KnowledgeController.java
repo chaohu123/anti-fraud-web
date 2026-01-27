@@ -53,5 +53,11 @@ public class KnowledgeController {
             @RequestParam(value = "progress", required = false, defaultValue = "100") Integer progress) {
         return Result.success(knowledgeService.learn(articleId, userId, progress));
     }
+
+    @Operation(summary = "查询用户知识学习进度（统计 + 已完成ID列表）")
+    @GetMapping("/progress/{userId}")
+    public Result<LearningProgressVO> progress(@PathVariable Long userId) {
+        return Result.success(knowledgeService.getProgress(userId));
+    }
 }
 

@@ -4,10 +4,76 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Anti-Fraud Web</title>
-    <script type="module" crossorigin src="/assets/index-BY11JjuK.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-DgNNpr3G.css">
+    <!-- 阻止 Service Worker 注册 -->
+    <meta name="theme-color" content="#ffffff">
+    <script>
+      // 在加载任何模块之前设置 global polyfill，解决 WebSocket 库加载失败问题
+      if (typeof global === 'undefined') {
+        window.global = globalThis;
+      }
+      
+      // 彻底清除所有 Service Worker，防止页面自动刷新和打印信息
+      (function() {
+        if ('serviceWorker' in navigator) {
+          // 方法1: 立即清除所有已注册的 Service Worker
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            registrations.forEach(function(registration) {
+              registration.unregister().then(function(success) {
+                // 静默处理，不输出日志
+              }).catch(function() {
+                // 静默忽略错误
+              });
+            });
+          }).catch(function() {
+            // 静默忽略错误
+          });
+          
+          // 方法2: 清除所有缓存
+          if ('caches' in window) {
+            caches.keys().then(function(names) {
+              names.forEach(function(name) {
+                caches.delete(name).catch(function() {
+                  // 静默忽略错误
+                });
+              });
+            }).catch(function() {
+              // 静默忽略错误
+            });
+          }
+          
+          // 方法3: 如果已经有活动的 Service Worker，立即注销
+          if (navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
+            setTimeout(function() {
+              navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                registrations.forEach(function(registration) {
+                  registration.unregister();
+                });
+              });
+            }, 100);
+          }
+          
+          // 方法4: 监听控制器变化，立即注销新的 Service Worker
+          navigator.serviceWorker.addEventListener('controllerchange', function() {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+              registrations.forEach(function(registration) {
+                registration.unregister();
+              });
+            });
+          });
+          
+          // 方法5: 阻止新的 Service Worker 注册
+          var originalRegister = navigator.serviceWorker.register;
+          navigator.serviceWorker.register = function() {
+            return Promise.reject(new Error('Service Worker 注册已被禁用'));
+          };
+        }
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-DqKaQdV3.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-Drj4FZ1O.css">
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app"></div>
   </body>
 </html>

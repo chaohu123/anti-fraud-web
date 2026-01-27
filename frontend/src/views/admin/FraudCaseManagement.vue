@@ -12,6 +12,8 @@ const dialogTitle = ref('新增案例');
 const isEdit = ref(false);
 const currentId = ref<number | null>(null);
 const selectedRows = ref<any[]>([]);
+const batchMode = ref(false);
+const tableRef = ref<any>();
 
 // 搜索和筛选
 const searchKeyword = ref('');
@@ -28,11 +30,13 @@ const pagination = ref({
 
 const formRef = ref<FormInstance>();
 const form = reactive({
+  title: '',
   type: 'SMS',
   content: '',
   hint: '',
   answer: 'FRAUD',
   difficulty: 'EASY',
+  mediaUrl: '',
 });
 
 const formRules: FormRules = {
@@ -82,7 +86,12 @@ const fetchCases = async () => {
     }
 
     const resp = await http.get('/admin/cases', { params });
-    if (resp.data?.content) {
+    if (resp.data?.data?.content) {
+      // 后端返回格式：{ data: { content: [], total: number } }
+      tableData.value = resp.data.data.content;
+      pagination.value.total = resp.data.data.total || 0;
+    } else if (resp.data?.content) {
+      // 兼容格式：{ content: [], total: number }
       tableData.value = resp.data.content;
       pagination.value.total = resp.data.total || 0;
     } else {
@@ -111,11 +120,13 @@ const handleEdit = (row: any) => {
   dialogTitle.value = '编辑案例';
   isEdit.value = true;
   currentId.value = row.id;
-  form.type = row.type || 'SMS';
+  form.title = row.title || '';
+  form.type = (row.type || 'sms').toUpperCase();
   form.content = row.content || '';
   form.hint = row.hint || '';
-  form.answer = row.answer || 'FRAUD';
-  form.difficulty = row.difficulty || 'EASY';
+  form.answer = (row.answer || 'fraud').toUpperCase();
+  form.difficulty = (row.level || 'easy').toUpperCase();
+  form.mediaUrl = row.mediaUrl || '';
   dialogVisible.value = true;
 };
 
@@ -140,11 +151,13 @@ const handleDelete = async (row: any) => {
 };
 
 const resetForm = () => {
+  form.title = '';
   form.type = 'SMS';
   form.content = '';
   form.hint = '';
   form.answer = 'FRAUD';
   form.difficulty = 'EASY';
+  form.mediaUrl = '';
   formRef.value?.clearValidate();
 };
 
@@ -155,10 +168,34 @@ const handleSubmit = async () => {
     if (valid) {
       try {
         if (isEdit.value && currentId.value) {
-          await http.put(`/admin/cases/${currentId.value}`, form);
+          // 编辑时，将字段转换为后端期望的格式
+          const updateData: any = {
+            title: form.title,
+            type: form.type.toLowerCase(),
+            content: form.content,
+            hint: form.hint,
+            answer: form.answer.toLowerCase(),
+            difficulty: form.difficulty.toLowerCase(),
+          };
+          if (form.mediaUrl) {
+            updateData.mediaUrl = form.mediaUrl;
+          }
+          await http.put(`/admin/cases/${currentId.value}`, updateData);
           ElMessage.success('更新成功');
         } else {
-          await http.post('/admin/cases', form);
+          // 创建时，转换为后端期望的格式
+          const createData: any = {
+            title: form.title || '后台录入案例',
+            type: form.type.toLowerCase(),
+            content: form.content,
+            hint: form.hint,
+            answer: form.answer.toLowerCase(),
+            difficulty: form.difficulty.toLowerCase(),
+          };
+          if (form.mediaUrl) {
+            createData.mediaUrl = form.mediaUrl;
+          }
+          await http.post('/admin/cases', createData);
           ElMessage.success('创建成功');
         }
         dialogVisible.value = false;
@@ -171,7 +208,18 @@ const handleSubmit = async () => {
 };
 
 const getTypeLabel = (type: string) => {
-  return caseTypes.find((t) => t.value === type)?.label || type;
+  const normalizedType = type.toUpperCase();
+  // 映射后端的小写类型到前端的大写类型
+  const typeMap: Record<string, string> = {
+    'SMS': '短信诈骗',
+    'EMAIL': '邮件诈骗',
+    'WEBSITE': '网站诈骗',
+    'SITE': '网站诈骗',
+    'PHONE': '电话诈骗',
+    'AUDIO': '电话诈骗',
+    'OTHER': '其他',
+  };
+  return typeMap[normalizedType] || caseTypes.find((t) => t.value === normalizedType)?.label || type;
 };
 
 const getAnswerLabel = (answer: string) => {
@@ -215,29 +263,36 @@ const handleSelectionChange = (selection: any[]) => {
   selectedRows.value = selection;
 };
 
-// 批量删除
-const handleBatchDelete = async () => {
+const enterBatchDeleteMode = () => {
+  batchMode.value = true;
+  selectedRows.value = [];
+  tableRef.value?.clearSelection?.();
+};
+
+const cancelBatchDelete = () => {
+  batchMode.value = false;
+  selectedRows.value = [];
+  tableRef.value?.clearSelection?.();
+};
+
+const confirmBatchDelete = async () => {
   if (selectedRows.value.length === 0) {
     ElMessage.warning('请选择要删除的案例');
     return;
   }
 
   try {
-    await ElMessageBox.confirm(
-      `确定要删除选中的 ${selectedRows.value.length} 个案例吗？`,
-      '提示',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning',
-      }
-    );
+    await ElMessageBox.confirm('确认删除所选数据吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    });
 
     try {
       const ids = selectedRows.value.map((row) => row.id);
       await http.delete('/admin/cases/batch', { data: { ids } });
       ElMessage.success('删除成功');
-      selectedRows.value = [];
+      cancelBatchDelete();
       fetchCases();
     } catch (error) {
       ElMessage.error('删除失败');
@@ -259,21 +314,11 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="case-management">
-    <el-card>
+  <div class="case-management admin-page">
+    <el-card class="management-card">
       <template #header>
         <div class="card-header">
           <span>诈骗案例管理</span>
-          <div class="header-actions">
-            <el-button
-              v-if="selectedRows.length > 0"
-              type="danger"
-              @click="handleBatchDelete"
-            >
-              批量删除 ({{ selectedRows.length }})
-            </el-button>
-            <el-button type="primary" @click="handleAdd">新增案例</el-button>
-          </div>
         </div>
       </template>
 
@@ -334,35 +379,47 @@ onMounted(() => {
         </el-select>
         <el-button type="primary" @click="handleSearch">搜索</el-button>
         <el-button @click="handleReset">重置</el-button>
+        <el-button type="primary" @click="handleAdd">新增案例</el-button>
+        <template v-if="!batchMode">
+          <el-button type="danger" @click="enterBatchDeleteMode">批量删除</el-button>
+        </template>
+        <template v-else>
+          <el-button type="danger" :disabled="selectedRows.length === 0" @click="confirmBatchDelete">
+            确认删除 ({{ selectedRows.length }})
+          </el-button>
+          <el-button @click="cancelBatchDelete">取消删除</el-button>
+        </template>
       </div>
 
       <el-table
+        ref="tableRef"
         v-loading="loading"
         :data="tableData"
         border
         stripe
+        class="data-table"
         @selection-change="handleSelectionChange"
       >
-        <el-table-column type="selection" width="55" />
+        <el-table-column v-if="batchMode" type="selection" width="55" />
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="type" label="类型" width="120">
           <template #default="{ row }">
-            {{ getTypeLabel(row.type) }}
+            {{ getTypeLabel((row.type || '').toUpperCase()) }}
           </template>
         </el-table-column>
         <el-table-column prop="content" label="内容" min-width="300" show-overflow-tooltip />
         <el-table-column prop="hint" label="提示" width="200" show-overflow-tooltip />
         <el-table-column prop="answer" label="判定" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.answer === 'FRAUD' ? 'danger' : 'success'">
-              {{ getAnswerLabel(row.answer) }}
+            <el-tag :type="(row.answer || '').toUpperCase() === 'FRAUD' ? 'danger' : 'success'">
+              {{ getAnswerLabel((row.answer || '').toUpperCase()) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="difficulty" label="难度" width="100">
+        <el-table-column prop="level" label="难度" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.difficulty === 'EASY' ? 'success' : row.difficulty === 'MEDIUM' ? 'warning' : 'danger'">
-              {{ getDifficultyLabel(row.difficulty) }}
+            <el-tag :type="(row.level || 'easy').toUpperCase() === 'EASY' ? 'success' : (row.level || '').toUpperCase() === 'MEDIUM' ? 'warning' : 'danger'">
+              {{ getDifficultyLabel((row.level || 'easy').toUpperCase()) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -389,8 +446,17 @@ onMounted(() => {
     </el-card>
 
     <!-- 新增/编辑对话框 -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="600px" @close="resetForm">
-      <el-form ref="formRef" :model="form" :rules="formRules" label-width="100px">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      width="700px"
+      :close-on-click-modal="false"
+      @close="resetForm"
+    >
+      <el-form ref="formRef" :model="form" :rules="formRules" label-width="120px" class="dialog-form">
+        <el-form-item label="案例标题">
+          <el-input v-model="form.title" placeholder="请输入案例标题（可选）" />
+        </el-form-item>
         <el-form-item label="案例类型" prop="type">
           <el-select v-model="form.type" style="width: 100%">
             <el-option
@@ -447,29 +513,6 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .case-management {
-  .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-
-    .header-actions {
-      display: flex;
-      gap: 12px;
-    }
-  }
-
-  .filter-bar {
-    display: flex;
-    align-items: center;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .pagination-wrapper {
-    margin-top: 20px;
-    display: flex;
-    justify-content: flex-end;
-  }
+  // 继承 admin-page 样式
 }
 </style>

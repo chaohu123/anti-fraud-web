@@ -95,6 +95,13 @@ public class FraudCaseServiceImpl extends ServiceImpl<FraudCaseMapper, FraudCase
         vo.setType(entity.getType());
         vo.setLevel(entity.getLevel());
         vo.setHint(entity.getHint());
+        vo.setContent(entity.getContent());
+        // 将 correctAnswer 映射为 answer，并转换为大写以匹配前端期望
+        if (entity.getCorrectAnswer() != null) {
+            String answer = entity.getCorrectAnswer().toUpperCase(Locale.ROOT);
+            // 前端期望 FRAUD/SAFE，后端存储的是 fraud/safe
+            vo.setAnswer(answer);
+        }
         return vo;
     }
 

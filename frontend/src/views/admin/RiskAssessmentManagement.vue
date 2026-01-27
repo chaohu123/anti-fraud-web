@@ -12,6 +12,8 @@ const dialogTitle = ref('新增问题');
 const isEdit = ref(false);
 const currentId = ref<number | null>(null);
 const selectedRows = ref<any[]>([]);
+const batchMode = ref(false);
+const tableRef = ref<any>();
 
 // 搜索和筛选
 const searchKeyword = ref('');
@@ -64,7 +66,11 @@ const fetchQuestions = async () => {
     }
 
     const resp = await http.get('/admin/assessment/questions', { params });
-    if (resp.data?.content) {
+    // 后端返回格式: { data: { content: [], total: number } }
+    if (resp.data?.data?.content) {
+      tableData.value = resp.data.data.content;
+      pagination.value.total = resp.data.data.total || 0;
+    } else if (resp.data?.content) {
       tableData.value = resp.data.content;
       pagination.value.total = resp.data.total || 0;
     } else {
@@ -224,29 +230,36 @@ const handleSelectionChange = (selection: any[]) => {
   selectedRows.value = selection;
 };
 
-// 批量删除
-const handleBatchDelete = async () => {
+const enterBatchDeleteMode = () => {
+  batchMode.value = true;
+  selectedRows.value = [];
+  tableRef.value?.clearSelection?.();
+};
+
+const cancelBatchDelete = () => {
+  batchMode.value = false;
+  selectedRows.value = [];
+  tableRef.value?.clearSelection?.();
+};
+
+const confirmBatchDelete = async () => {
   if (selectedRows.value.length === 0) {
     ElMessage.warning('请选择要删除的问题');
     return;
   }
 
   try {
-    await ElMessageBox.confirm(
-      `确定要删除选中的 ${selectedRows.value.length} 个问题吗？`,
-      '提示',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning',
-      }
-    );
+    await ElMessageBox.confirm('确认删除所选数据吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    });
 
     try {
       const ids = selectedRows.value.map((row) => row.id);
       await http.delete('/admin/assessment/questions/batch', { data: { ids } });
       ElMessage.success('删除成功');
-      selectedRows.value = [];
+      cancelBatchDelete();
       fetchQuestions();
     } catch (error) {
       ElMessage.error('删除失败');
@@ -268,21 +281,11 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="assessment-management">
-    <el-card>
+  <div class="assessment-management admin-page">
+    <el-card class="management-card">
       <template #header>
         <div class="card-header">
           <span>风险测评问卷管理</span>
-          <div class="header-actions">
-            <el-button
-              v-if="selectedRows.length > 0"
-              type="danger"
-              @click="handleBatchDelete"
-            >
-              批量删除 ({{ selectedRows.length }})
-            </el-button>
-            <el-button type="primary" @click="handleAdd">新增问题</el-button>
-          </div>
         </div>
       </template>
 
@@ -315,16 +318,28 @@ onMounted(() => {
         </el-select>
         <el-button type="primary" @click="handleSearch">搜索</el-button>
         <el-button @click="handleReset">重置</el-button>
+        <el-button type="primary" @click="handleAdd">新增问题</el-button>
+        <template v-if="!batchMode">
+          <el-button type="danger" @click="enterBatchDeleteMode">批量删除</el-button>
+        </template>
+        <template v-else>
+          <el-button type="danger" :disabled="selectedRows.length === 0" @click="confirmBatchDelete">
+            确认删除 ({{ selectedRows.length }})
+          </el-button>
+          <el-button @click="cancelBatchDelete">取消删除</el-button>
+        </template>
       </div>
 
       <el-table
+        ref="tableRef"
         v-loading="loading"
         :data="tableData"
         border
         stripe
+        class="data-table"
         @selection-change="handleSelectionChange"
       >
-        <el-table-column type="selection" width="55" />
+        <el-table-column v-if="batchMode" type="selection" width="55" />
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="dimension" label="维度" width="150">
           <template #default="{ row }">
@@ -361,8 +376,14 @@ onMounted(() => {
     </el-card>
 
     <!-- 新增/编辑对话框 -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="700px" @close="resetForm">
-      <el-form ref="formRef" :model="form" :rules="formRules" label-width="100px">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      width="700px"
+      :close-on-click-modal="false"
+      @close="resetForm"
+    >
+      <el-form ref="formRef" :model="form" :rules="formRules" label-width="120px" class="dialog-form">
         <el-form-item label="问题维度" prop="dimension">
           <el-select v-model="form.dimension" style="width: 100%">
             <el-option
@@ -406,9 +427,17 @@ onMounted(() => {
               删除
             </el-button>
           </div>
-          <el-button type="primary" link size="small" @click="addOption" style="margin-top: 8px">
-            + 添加选项
-          </el-button>
+          <div class="add-option-row">
+            <el-button
+              type="primary"
+              plain
+              size="small"
+              class="add-option-btn"
+              @click="addOption"
+            >
+              + 添加选项
+            </el-button>
+          </div>
           <div class="form-tip">分值越高表示风险越高</div>
         </el-form-item>
         <el-form-item label="权重" prop="weight">
@@ -433,41 +462,30 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .assessment-management {
-  .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-
-    .header-actions {
-      display: flex;
-      gap: 12px;
-    }
-  }
-
-  .filter-bar {
-    display: flex;
-    align-items: center;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .pagination-wrapper {
-    margin-top: 20px;
-    display: flex;
-    justify-content: flex-end;
-  }
-
   .option-item {
     display: flex;
     align-items: center;
     margin-bottom: 12px;
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    transition: all 0.3s;
+
+    &:hover {
+      background: #f0f0f0;
+      transform: translateX(4px);
+    }
   }
 
-  .form-tip {
-    font-size: 12px;
-    color: #909399;
-    margin-top: 4px;
+  .add-option-row {
+    margin-top: 8px;
+    width: 100%;
+    display: flex;
+    justify-content: flex-start;
+
+    .add-option-btn {
+      min-width: 96px;
+    }
   }
 }
 </style>

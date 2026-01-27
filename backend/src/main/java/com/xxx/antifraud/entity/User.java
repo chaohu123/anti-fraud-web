@@ -43,5 +43,12 @@ public class User extends BaseEntity {
      */
     @TableField("last_score")
     private Integer lastScore;
+
+    /**
+     * 用户头像URL（base64或URL）
+     * 数据库字段名：avatar_url
+     */
+    @TableField("avatar_url")
+    private String avatar;
 }
 

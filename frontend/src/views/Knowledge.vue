@@ -22,39 +22,77 @@
       </div>
     </div>
 
-    <!-- 知识分类导航区 -->
-    <div class="category-nav">
-      <el-card shadow="hover" 
-               v-for="cat in categories" 
-               :key="cat"
-               :class="['category-card', { active: selectedCategory === cat }]"
-               @click="selectedCategory = cat">
-        <div class="category-content">
-          <span class="category-name">{{ cat }}</span>
-          <el-tag :type="getCategoryTagType(cat)" size="small">
-            {{ getCategoryCount(cat) }} 条
-          </el-tag>
-        </div>
-      </el-card>
-      <el-card shadow="hover" 
-               :class="['category-card', { active: selectedCategory === '' }]"
-               @click="selectedCategory = ''">
-        <div class="category-content">
-          <span class="category-name">全部</span>
-          <el-tag type="info" size="small">{{ totalCount }} 条</el-tag>
-        </div>
-      </el-card>
-    </div>
-
     <!-- 知识内容列表区 -->
     <div class="knowledge-list">
-      <el-input
-        v-model="searchKeyword"
-        placeholder="搜索知识点..."
-        clearable
-        class="search-input"
-        prefix-icon="Search"
-      />
+      <!-- 搜索区域 -->
+      <div class="search-section">
+        <div class="search-wrapper">
+          <el-input
+            v-model="searchKeyword"
+            placeholder="搜索知识点、标题、摘要..."
+            clearable
+            class="search-input"
+            size="large"
+            @keyup.enter="handleSearch"
+          >
+            <template #prefix>
+              <el-icon class="search-icon"><Search /></el-icon>
+            </template>
+            <template #suffix>
+              <el-button 
+                type="primary" 
+                :icon="Search" 
+                circle 
+                size="small"
+                @click="handleSearch"
+                class="search-button"
+              />
+            </template>
+          </el-input>
+          <el-dropdown 
+            trigger="click" 
+            @command="handleCategorySelect"
+            class="filter-dropdown"
+          >
+            <el-button size="large" class="filter-button">
+              <el-icon><Filter /></el-icon>
+              <span class="filter-text">
+                {{ selectedCategory ? selectedCategory : '筛选' }}
+              </span>
+              <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item 
+                  :command="''"
+                  :class="{ 'is-selected': selectedCategory === '' }"
+                >
+                  <span>全部</span>
+                  <el-tag type="info" size="small" style="margin-left: 8px;">
+                    {{ totalCount }} 条
+                  </el-tag>
+                </el-dropdown-item>
+                <el-dropdown-item 
+                  v-for="cat in categories" 
+                  :key="cat"
+                  :command="cat"
+                  :class="{ 'is-selected': selectedCategory === cat }"
+                >
+                  <span>{{ cat }}</span>
+                  <el-tag :type="getCategoryTagType(cat)" size="small" style="margin-left: 8px;">
+                    {{ getCategoryCount(cat) }} 条
+                  </el-tag>
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+        <div class="search-stats" v-if="!loading">
+          <span class="stats-text">
+            共找到 <strong>{{ filteredItems.length }}</strong> 条结果
+          </span>
+        </div>
+      </div>
       
       <el-row v-if="loading" :gutter="20">
         <el-col v-for="i in 6" :key="i" :span="8">
@@ -64,22 +102,26 @@
 
       <el-alert v-if="error" :title="error" type="warning" show-icon style="margin-bottom: 20px" />
 
-      <el-empty v-if="!filteredItems.length && !loading" description="暂无匹配内容" />
+      <el-empty v-if="!paginatedItems.length && !loading" description="暂无匹配内容" />
 
       <el-row v-else :gutter="20">
-        <el-col v-for="item in filteredItems" :key="item.id" :span="8" :xs="24" :sm="12" class="knowledge-col">
+        <el-col v-for="item in paginatedItems" :key="item.id" :span="8" :xs="24" :sm="12" class="knowledge-col">
           <el-card shadow="hover" class="knowledge-card">
             <div class="card-header">
-              <el-tag :type="getRiskTagType(item.riskLevel)" size="small" class="risk-tag">
-                {{ item.riskLevel }}风险
-              </el-tag>
-              <el-tag 
-                v-if="knowledgeStore.isRead(item.id)" 
-                type="success" 
-                size="small"
-                class="learned-tag">
-                已学习
-              </el-tag>
+              <div class="header-left">
+                <el-tag 
+                  v-if="knowledgeStore.isRead(item.id)" 
+                  type="success" 
+                  size="small"
+                  class="learned-tag">
+                  已学习
+                </el-tag>
+              </div>
+              <div class="header-right">
+                <el-tag :type="getRiskTagType(item.riskLevel)" size="small" class="risk-tag">
+                  {{ item.riskLevel }}风险
+                </el-tag>
+              </div>
             </div>
             
             <div class="card-category">{{ item.category }}</div>
@@ -113,17 +155,32 @@
           </el-card>
         </el-col>
       </el-row>
+
+      <!-- 分页组件 -->
+      <div class="pagination-wrapper" v-if="filteredItems.length > 0 && !loading">
+        <el-pagination
+          v-model:current-page="pagination.currentPage"
+          v-model:page-size="pagination.pageSize"
+          :total="filteredItems.length"
+          :page-sizes="[6, 12, 18]"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
+        />
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, onMounted, watch } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import http from '../api/http';
 import { useKnowledgeStore } from '../store/knowledge';
 import { useUserStore } from '../stores/user';
+import { useAchievementStore } from '../store/achievement';
 import { ElMessage } from 'element-plus';
+import { Search, Filter, ArrowDown } from '@element-plus/icons-vue';
 
 type KnowledgeItem = {
   id: number;
@@ -139,6 +196,7 @@ type KnowledgeItem = {
 };
 
 const router = useRouter();
+const route = useRoute();
 const searchKeyword = ref('');
 const selectedCategory = ref('');
 const items = ref<KnowledgeItem[]>([]);
@@ -146,10 +204,32 @@ const loading = ref(false);
 const error = ref('');
 const knowledgeStore = useKnowledgeStore();
 const userStore = useUserStore();
+const achievementStore = useAchievementStore();
 
-// 初始化 store
+// 分页配置 - 6的倍数，最多18条
+const pagination = ref({
+  currentPage: 1,
+  pageSize: 6,
+});
+
+// 初始化 store（先恢复用户，再按 userId 分桶加载“已学习”与成就），并处理来自报告页的筛选参数
 onMounted(() => {
-  knowledgeStore.hydrate();
+  userStore.hydrate();
+  knowledgeStore.hydrate(userStore.userId);
+  achievementStore.hydrate(userStore.userId);
+
+  const { category, keyword, dimension } = route.query as {
+    category?: string;
+    keyword?: string;
+    dimension?: string;
+  };
+  if (category && typeof category === 'string') {
+    selectedCategory.value = category;
+  }
+  const kwSource = typeof keyword === 'string' ? keyword : typeof dimension === 'string' ? dimension : '';
+  if (kwSource) {
+    searchKeyword.value = kwSource;
+  }
 });
 
 const categories = computed(() => {
@@ -173,6 +253,46 @@ const filteredItems = computed(() => {
       item.category.includes(searchKeyword.value);
     return matchCategory && matchKeyword;
   });
+});
+
+// 分页后的数据
+const paginatedItems = computed(() => {
+  const start = (pagination.value.currentPage - 1) * pagination.value.pageSize;
+  const end = start + pagination.value.pageSize;
+  return filteredItems.value.slice(start, end);
+});
+
+// 搜索处理
+function handleSearch() {
+  pagination.value.currentPage = 1;
+}
+
+// 分类筛选处理
+function handleCategorySelect(category: string) {
+  selectedCategory.value = category;
+  pagination.value.currentPage = 1;
+}
+
+// 分页变化处理
+function handlePageChange(page: number) {
+  pagination.value.currentPage = page;
+  // 滚动到顶部
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function handleSizeChange(size: number) {
+  pagination.value.pageSize = size;
+  pagination.value.currentPage = 1;
+}
+
+// 监听分类变化，重置分页
+watch(selectedCategory, () => {
+  pagination.value.currentPage = 1;
+});
+
+// 监听搜索关键词变化，重置分页
+watch(searchKeyword, () => {
+  pagination.value.currentPage = 1;
 });
 
 function getCategoryCount(category: string): number {
@@ -206,14 +326,34 @@ function goToDetail(id: number) {
 
 async function toggleLearn(id: number) {
   const willMark = !knowledgeStore.isRead(id);
+  const wasAlreadyRead = knowledgeStore.isRead(id);
+  const wasEverRead = knowledgeStore.hasEverRead(id);
+
   knowledgeStore.toggleRead(id);
+
+  // 如果是“第一次”学习该知识点（无论之后是否取消过标记），只增加一次经验
+  if (willMark && !wasEverRead) {
+    const expResult = achievementStore.addExp(50);
+    if (expResult.leveledUp) {
+      ElMessage.success({
+        message: `恭喜升级！获得50经验值，当前等级：${expResult.newLevel}级`,
+        duration: 3000,
+      });
+    } else {
+      ElMessage.success(`已标记为已学习，获得50经验值`);
+    }
+    // 检查成就
+    achievementStore.checkAchievements();
+  }
 
   if (willMark && userStore.userId) {
     try {
       await http.post(`/knowledge/${id}/learn`, null, {
         params: { userId: userStore.userId, progress: 100 },
       });
-      ElMessage.success('已同步学习记录');
+      if (wasAlreadyRead) {
+        ElMessage.success('已同步学习记录');
+      }
     } catch {
       ElMessage.warning('同步学习记录失败（不影响本地标记）');
     }
@@ -226,6 +366,18 @@ onMounted(async () => {
   try {
     const resp = await http.get('/knowledge');
     items.value = resp.data || [];
+    // 登录状态下，同步后端学习进度（包括已完成的知识ID）
+    if (userStore.userId) {
+      try {
+        const progressResp = await http.get(`/knowledge/progress/${userStore.userId}`);
+        const finishedIds = progressResp.data?.finishedArticleIds || [];
+        if (Array.isArray(finishedIds) && finishedIds.length) {
+          knowledgeStore.syncFinishedFromBackend(finishedIds.map((x: any) => Number(x)));
+        }
+      } catch {
+        // 背景同步失败可以忽略，不影响页面使用
+      }
+    }
   } catch (err) {
     error.value = '知识库服务不可用，展示本地示例。';
     items.value = [
@@ -311,47 +463,6 @@ onMounted(async () => {
   }
 }
 
-// 分类导航区
-.category-nav {
-  max-width: 1200px;
-  margin: 0 auto 30px;
-  padding: 0 20px;
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-  justify-content: center;
-
-  .category-card {
-    cursor: pointer;
-    transition: all 0.3s;
-    border: 2px solid transparent;
-    min-width: 140px;
-
-    &:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
-    }
-
-    &.active {
-      border-color: #667eea;
-      background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
-    }
-
-    .category-content {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-      padding: 8px;
-
-      .category-name {
-        font-size: 16px;
-        font-weight: 600;
-        color: #303133;
-      }
-    }
-  }
-}
 
 // 知识列表区
 .knowledge-list {
@@ -359,9 +470,101 @@ onMounted(async () => {
   margin: 0 auto;
   padding: 0 20px;
 
-  .search-input {
-    margin-bottom: 24px;
-    max-width: 400px;
+  // 搜索区域
+  .search-section {
+    margin-bottom: 30px;
+    padding: 24px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s;
+
+    &:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    }
+
+    .search-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+
+      .search-input {
+        flex: 1;
+        max-width: 600px;
+
+        :deep(.el-input__wrapper) {
+          border-radius: 24px;
+          padding: 8px 16px;
+          box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+          transition: all 0.3s;
+
+          &:hover {
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.25);
+          }
+
+          &.is-focus {
+            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+          }
+        }
+
+        .search-icon {
+          color: #667eea;
+          font-size: 18px;
+        }
+
+        .search-button {
+          margin-right: 4px;
+        }
+      }
+
+      .filter-dropdown {
+        .filter-button {
+          border-radius: 24px;
+          padding: 8px 20px;
+          box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+          transition: all 0.3s;
+          border: 1px solid #dcdfe6;
+
+          &:hover {
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.25);
+            border-color: #667eea;
+          }
+
+          .filter-text {
+            margin: 0 8px;
+            font-weight: 500;
+          }
+        }
+      }
+    }
+
+    // 下拉菜单选中状态样式
+    :deep(.el-dropdown-menu__item) {
+      &.is-selected {
+        color: #667eea;
+        background-color: rgba(102, 126, 234, 0.1);
+        font-weight: 600;
+      }
+    }
+
+    .search-stats {
+      display: flex;
+      align-items: center;
+      padding-top: 8px;
+      border-top: 1px solid #ebeef5;
+
+      .stats-text {
+        font-size: 14px;
+        color: #606266;
+
+        strong {
+          color: #667eea;
+          font-weight: 600;
+          font-size: 16px;
+        }
+      }
+    }
   }
 
   .knowledge-col {
@@ -382,8 +585,22 @@ onMounted(async () => {
     .card-header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: flex-start;
       margin-bottom: 12px;
+      
+      .header-left {
+        .learned-tag {
+          margin-right: 4px;
+        }
+      }
+
+      .header-right {
+        margin-left: auto;
+
+        .risk-tag {
+          font-weight: 600;
+        }
+      }
     }
 
     .card-category {
@@ -444,6 +661,57 @@ onMounted(async () => {
       border-top: 1px solid #ebeef5;
     }
   }
+
+  // 分页组件
+  .pagination-wrapper {
+    margin-top: 40px;
+    padding: 24px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    display: flex;
+    justify-content: center;
+
+    :deep(.el-pagination) {
+      .el-pagination__total {
+        color: #606266;
+        font-weight: 500;
+      }
+
+      .btn-prev,
+      .btn-next {
+        background: #f5f7fa;
+        border-radius: 6px;
+        transition: all 0.3s;
+
+        &:hover {
+          background: #667eea;
+          color: white;
+        }
+      }
+
+      .el-pager li {
+        border-radius: 6px;
+        transition: all 0.3s;
+
+        &:hover {
+          background: rgba(102, 126, 234, 0.1);
+          color: #667eea;
+        }
+
+        &.is-active {
+          background: #667eea;
+          color: white;
+        }
+      }
+
+      .el-pagination__jump {
+        .el-input__wrapper {
+          border-radius: 6px;
+        }
+      }
+    }
+  }
 }
 
 // 响应式设计
@@ -461,15 +729,43 @@ onMounted(async () => {
     }
   }
 
-  .category-nav {
-    justify-content: flex-start;
-    overflow-x: auto;
-    padding-bottom: 10px;
-  }
-
   .knowledge-list {
     .knowledge-col {
       margin-bottom: 16px;
+    }
+
+    .search-section {
+      padding: 16px;
+
+      .search-wrapper {
+        flex-direction: column;
+        gap: 12px;
+
+        .search-input {
+          max-width: 100%;
+        }
+
+        .filter-dropdown {
+          width: 100%;
+
+          .filter-button {
+            width: 100%;
+            justify-content: center;
+          }
+        }
+      }
+    }
+
+    .pagination-wrapper {
+      padding: 16px;
+      margin-top: 24px;
+
+      :deep(.el-pagination) {
+        .el-pagination__sizes,
+        .el-pagination__jump {
+          display: none;
+        }
+      }
     }
   }
 }

@@ -15,16 +15,32 @@ http.interceptors.response.use(
         // 兼容现有页面写法：仍然通过 resp.data 读取业务数据
         return { ...resp, data: body.data };
       }
-      return Promise.reject(new Error(body.message || '接口调用失败'));
+      // 返回后端的具体错误信息
+      const errorMessage = body.message || '接口调用失败';
+      return Promise.reject(new Error(errorMessage));
     }
     return resp;
   },
   (error) => {
-    // 网络不可达时不在控制台刷屏，交由页面的 catch 处理（已给出提示/回退）
-    if (!(error?.code === 'ERR_NETWORK')) {
-      console.warn('API error', error);
+    // 处理 HTTP 错误响应（如 400, 500 等）
+    if (error.response) {
+      const responseData = error.response.data;
+      // 如果后端返回了统一的 Result 格式
+      if (responseData && typeof responseData === 'object' && 'message' in responseData) {
+        const errorMessage = responseData.message || '系统内部错误';
+        return Promise.reject(new Error(errorMessage));
+      }
+      // 否则使用 HTTP 状态码信息
+      const statusText = error.response.statusText || '请求失败';
+      return Promise.reject(new Error(`${error.response.status}: ${statusText}`));
     }
-    return Promise.reject(error);
+    // 网络错误等其他错误
+    if (error.code === 'ERR_NETWORK') {
+      return Promise.reject(new Error('网络连接失败，请检查网络设置'));
+    }
+    // 其他错误，显示错误消息或默认消息
+    const errorMessage = error.message || '系统内部错误';
+    return Promise.reject(new Error(errorMessage));
   },
 );
 

@@ -12,6 +12,8 @@ const dialogTitle = ref('新增知识');
 const isEdit = ref(false);
 const currentId = ref<number | null>(null);
 const selectedRows = ref<any[]>([]);
+const batchMode = ref(false);
+const tableRef = ref<any>();
 
 // 搜索和筛选
 const searchKeyword = ref('');
@@ -29,7 +31,8 @@ const pagination = ref({
 const formRef = ref<FormInstance>();
 const form = reactive({
   title: '',
-  category: 'SMS',
+  category: '短信',
+  summary: '',
   content: '',
   contentType: 'ARTICLE',
   status: 'PUBLISHED',
@@ -44,13 +47,11 @@ const formRules: FormRules = {
 };
 
 const categories = [
-  { label: '短信诈骗', value: 'SMS' },
-  { label: '邮件诈骗', value: 'EMAIL' },
-  { label: '网站诈骗', value: 'WEBSITE' },
-  { label: '电话诈骗', value: 'PHONE' },
-  { label: '金融诈骗', value: 'FINANCE' },
-  { label: '社交平台诈骗', value: 'SOCIAL' },
-  { label: '其他', value: 'OTHER' },
+  { label: '短信', value: '短信' },
+  { label: '电话', value: '电话' },
+  { label: '网站', value: '网站' },
+  { label: '社交', value: '社交' },
+  { label: '其他', value: '其他' },
 ];
 
 const contentTypes = [
@@ -85,7 +86,11 @@ const fetchKnowledge = async () => {
     }
 
     const resp = await http.get('/admin/knowledge', { params });
-    if (resp.data?.content) {
+    // 后端返回格式: { data: { content: [], total: number } }
+    if (resp.data?.data?.content) {
+      tableData.value = resp.data.data.content;
+      pagination.value.total = resp.data.data.total || 0;
+    } else if (resp.data?.content) {
       tableData.value = resp.data.content;
       pagination.value.total = resp.data.total || 0;
     } else {
@@ -114,7 +119,8 @@ const handleEdit = (row: any) => {
   isEdit.value = true;
   currentId.value = row.id;
   form.title = row.title || '';
-  form.category = row.category || 'SMS';
+  form.category = row.category || '短信';
+  form.summary = row.summary || '';
   form.content = row.content || '';
   form.contentType = row.contentType || 'ARTICLE';
   form.status = row.status || 'PUBLISHED';
@@ -145,7 +151,8 @@ const handleDelete = async (row: any) => {
 
 const resetForm = () => {
   form.title = '';
-  form.category = 'SMS';
+  form.category = '短信';
+  form.summary = '';
   form.content = '';
   form.contentType = 'ARTICLE';
   form.status = 'PUBLISHED';
@@ -163,6 +170,7 @@ const handleSubmit = async () => {
         const data = {
           title: form.title,
           category: form.category,
+          summary: form.summary,
           content: form.content,
           contentType: form.contentType,
           status: form.status,
@@ -187,7 +195,9 @@ const handleSubmit = async () => {
 };
 
 const getCategoryLabel = (category: string) => {
-  return categories.find((c) => c.value === category)?.label || category;
+  // 数据库存储的是中文分类，直接返回或查找匹配
+  const found = categories.find((c) => c.value === category);
+  return found ? found.label : category || '其他';
 };
 
 const getContentTypeLabel = (type: string) => {
@@ -231,29 +241,36 @@ const handleSelectionChange = (selection: any[]) => {
   selectedRows.value = selection;
 };
 
-// 批量删除
-const handleBatchDelete = async () => {
+const enterBatchDeleteMode = () => {
+  batchMode.value = true;
+  selectedRows.value = [];
+  tableRef.value?.clearSelection?.();
+};
+
+const cancelBatchDelete = () => {
+  batchMode.value = false;
+  selectedRows.value = [];
+  tableRef.value?.clearSelection?.();
+};
+
+const confirmBatchDelete = async () => {
   if (selectedRows.value.length === 0) {
     ElMessage.warning('请选择要删除的知识');
     return;
   }
 
   try {
-    await ElMessageBox.confirm(
-      `确定要删除选中的 ${selectedRows.value.length} 个知识吗？`,
-      '提示',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning',
-      }
-    );
+    await ElMessageBox.confirm('确认删除所选数据吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    });
 
     try {
       const ids = selectedRows.value.map((row) => row.id);
       await http.delete('/admin/knowledge/batch', { data: { ids } });
       ElMessage.success('删除成功');
-      selectedRows.value = [];
+      cancelBatchDelete();
       fetchKnowledge();
     } catch (error) {
       ElMessage.error('删除失败');
@@ -275,21 +292,11 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="knowledge-management">
-    <el-card>
+  <div class="knowledge-management admin-page">
+    <el-card class="management-card">
       <template #header>
         <div class="card-header">
           <span>防骗知识库管理</span>
-          <div class="header-actions">
-            <el-button
-              v-if="selectedRows.length > 0"
-              type="danger"
-              @click="handleBatchDelete"
-            >
-              批量删除 ({{ selectedRows.length }})
-            </el-button>
-            <el-button type="primary" @click="handleAdd">新增知识</el-button>
-          </div>
         </div>
       </template>
 
@@ -350,23 +357,36 @@ onMounted(() => {
         </el-select>
         <el-button type="primary" @click="handleSearch">搜索</el-button>
         <el-button @click="handleReset">重置</el-button>
+        <el-button type="primary" @click="handleAdd">新增知识</el-button>
+        <template v-if="!batchMode">
+          <el-button type="danger" @click="enterBatchDeleteMode">批量删除</el-button>
+        </template>
+        <template v-else>
+          <el-button type="danger" :disabled="selectedRows.length === 0" @click="confirmBatchDelete">
+            确认删除 ({{ selectedRows.length }})
+          </el-button>
+          <el-button @click="cancelBatchDelete">取消删除</el-button>
+        </template>
       </div>
 
       <el-table
+        ref="tableRef"
         v-loading="loading"
         :data="tableData"
         border
         stripe
+        class="data-table"
         @selection-change="handleSelectionChange"
       >
-        <el-table-column type="selection" width="55" />
+        <el-table-column v-if="batchMode" type="selection" width="55" />
         <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="category" label="分类" width="120">
+        <el-table-column prop="title" label="标题" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="category" label="分类" width="100">
           <template #default="{ row }">
             {{ getCategoryLabel(row.category) }}
           </template>
         </el-table-column>
+        <el-table-column prop="summary" label="摘要" min-width="200" show-overflow-tooltip />
         <el-table-column prop="contentType" label="类型" width="100">
           <template #default="{ row }">
             {{ getContentTypeLabel(row.contentType) }}
@@ -379,7 +399,7 @@ onMounted(() => {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="content" label="内容预览" min-width="300" show-overflow-tooltip />
+        <el-table-column prop="content" label="内容预览" min-width="250" show-overflow-tooltip />
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handleEdit(row)">编辑</el-button>
@@ -403,8 +423,14 @@ onMounted(() => {
     </el-card>
 
     <!-- 新增/编辑对话框 -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="800px" @close="resetForm">
-      <el-form ref="formRef" :model="form" :rules="formRules" label-width="100px">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      width="800px"
+      :close-on-click-modal="false"
+      @close="resetForm"
+    >
+      <el-form ref="formRef" :model="form" :rules="formRules" label-width="120px" class="dialog-form">
         <el-form-item label="标题" prop="title">
           <el-input v-model="form.title" placeholder="请输入标题" />
         </el-form-item>
@@ -417,6 +443,14 @@ onMounted(() => {
               :value="item.value"
             />
           </el-select>
+        </el-form-item>
+        <el-form-item label="摘要">
+          <el-input
+            v-model="form.summary"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入摘要（可选）"
+          />
         </el-form-item>
         <el-form-item label="内容类型" prop="contentType">
           <el-radio-group v-model="form.contentType">
@@ -465,29 +499,6 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .knowledge-management {
-  .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-
-    .header-actions {
-      display: flex;
-      gap: 12px;
-    }
-  }
-
-  .filter-bar {
-    display: flex;
-    align-items: center;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .pagination-wrapper {
-    margin-top: 20px;
-    display: flex;
-    justify-content: flex-end;
-  }
+  // 继承 admin-page 样式
 }
 </style>

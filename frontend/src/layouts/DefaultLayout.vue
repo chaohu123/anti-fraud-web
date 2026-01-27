@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { UserFilled, SwitchButton } from '@element-plus/icons-vue';
 import { useUserStore } from '../stores/user';
 
 const route = useRoute();
@@ -32,12 +33,19 @@ const logout = () => {
   router.push('/');
 };
 
+const handleCommand = (command: string) => {
+  if (command === 'profile') {
+    goProfile();
+  } else if (command === 'logout') {
+    logout();
+  }
+};
+
 // 导航菜单项配置
 const menuItems = computed(() => [
   { path: '/', label: '首页' },
   { path: '/train', label: '识别训练' },
   { path: '/assessment', label: '风险测评' },
-  { path: '/report', label: '报告' },
   { path: '/knowledge', label: '防骗知识' },
   { path: '/achievement', label: '成就页' },
   ...(isAdmin.value ? [{ path: '/admin', label: '管理' }] : []),
@@ -67,14 +75,26 @@ const navigate = (path: string) => {
           <el-button v-if="!isAuthed" size="small" type="primary" plain @click="goLogin">
             登录 / 注册
           </el-button>
-          <el-dropdown v-else>
-            <span class="user-trigger">
-              {{ userStore.name || '用户' }}
-            </span>
+          <el-dropdown v-else trigger="hover" @command="handleCommand">
+            <div class="user-avatar-wrapper" @click.stop="goProfile">
+              <el-avatar 
+                :size="36" 
+                :src="userStore.avatar || undefined"
+                class="user-avatar"
+              >
+                <el-icon :size="18"><UserFilled /></el-icon>
+              </el-avatar>
+            </div>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item @click="goProfile">我的进度</el-dropdown-item>
-                <el-dropdown-item divided @click="logout">退出登录</el-dropdown-item>
+                <el-dropdown-item command="profile">
+                  <el-icon><UserFilled /></el-icon>
+                  <span style="margin-left: 8px">个人中心</span>
+                </el-dropdown-item>
+                <el-dropdown-item divided command="logout">
+                  <el-icon><SwitchButton /></el-icon>
+                  <span style="margin-left: 8px">退出登录</span>
+                </el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -173,10 +193,25 @@ const navigate = (path: string) => {
   display: flex;
   align-items: center;
 }
-.user-trigger {
+.user-avatar-wrapper {
   cursor: pointer;
-  font-size: 14px;
-  color: var(--af-text);
+  display: flex;
+  align-items: center;
+  transition: transform 0.2s;
+  
+  &:hover {
+    transform: scale(1.05);
+  }
+}
+
+.user-avatar {
+  border: 2px solid var(--el-border-color);
+  transition: all 0.2s;
+  
+  &:hover {
+    border-color: var(--el-color-primary);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
 }
 .app-main {
   padding: 0;

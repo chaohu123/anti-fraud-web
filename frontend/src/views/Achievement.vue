@@ -33,10 +33,18 @@ const currentAchievements = computed(() => {
   return achievementStore.achievementsByCategory(activeCategory.value);
 });
 
+// 已获得成就列表（所有分类，状态为 unlocked）
+const unlockedAchievements = computed(() => {
+  return achievementStore.achievements.filter((a) => achievementStore.unlockedAchievements.has(a.id));
+});
+
 // 成就统计
 const stats = computed(() => {
   const total = achievementStore.achievements.length;
-  const unlocked = achievementStore.unlockedAchievements.size;
+  // 只统计当前成就列表中真实存在且已解锁的数量，避免脏数据影响显示
+  const unlocked = achievementStore.achievements.filter((a) =>
+    achievementStore.unlockedAchievements.has(a.id)
+  ).length;
   const progress = achievementStore.achievements.filter(
     (a) => a.status === 'progress'
   ).length;
@@ -91,7 +99,7 @@ watch(
 );
 
 onMounted(() => {
-  achievementStore.hydrate();
+  achievementStore.hydrate(userStore.userId);
   achievementStore.refresh();
 });
 </script>
@@ -143,6 +151,36 @@ onMounted(() => {
           </div>
         </div>
       </div>
+    </el-card>
+
+    <!-- 已获得成就展示区 -->
+    <el-card class="unlocked-card" shadow="hover">
+      <template #header>
+        <div class="unlocked-header">
+          <span class="unlocked-title">已获得成就</span>
+          <span class="unlocked-summary">
+            共 {{ stats.unlocked }} 个
+          </span>
+        </div>
+      </template>
+      <div v-if="unlockedAchievements.length" class="unlocked-list">
+        <el-tag
+          v-for="a in unlockedAchievements"
+          :key="a.id"
+          type="success"
+          effect="light"
+          round
+          class="unlocked-tag"
+          @click="openAchievementDetail(a.id)"
+        >
+          {{ a.name }}
+        </el-tag>
+      </div>
+      <el-empty
+        v-else
+        description="暂未获得任何成就，去完成训练、学习和测评解锁吧～"
+        :image-size="80"
+      />
     </el-card>
 
     <!-- 成就分类 Tab -->
@@ -330,6 +368,46 @@ onMounted(() => {
         opacity: 0.9;
       }
     }
+  }
+}
+
+// 已获得成就区域
+.unlocked-card {
+  :deep(.el-card__header) {
+    padding: 16px 20px;
+    border-bottom: 1px solid #ebeef5;
+  }
+
+  :deep(.el-card__body) {
+    padding: 16px 20px 20px;
+  }
+
+  .unlocked-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+
+    .unlocked-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #303133;
+    }
+
+    .unlocked-summary {
+      font-size: 13px;
+      color: #909399;
+    }
+  }
+
+  .unlocked-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .unlocked-tag {
+    cursor: pointer;
   }
 }
 

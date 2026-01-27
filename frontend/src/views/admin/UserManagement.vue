@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import http from '../../api/http';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Search } from '@element-plus/icons-vue';
+import { Search, User } from '@element-plus/icons-vue';
+
+const route = useRoute();
 
 const tableData = ref<any[]>([]);
 const loading = ref(false);
@@ -36,8 +39,14 @@ const fetchUsers = async () => {
     }
 
     const resp = await http.get('/admin/users', { params });
-    tableData.value = resp.data?.content || [];
-    pagination.value.total = resp.data?.total || 0;
+    // 后端返回格式: { data: { content: [], total: number } }
+    if (resp.data?.data) {
+      tableData.value = resp.data.data.content || [];
+      pagination.value.total = resp.data.data.total || 0;
+    } else {
+      tableData.value = resp.data?.content || [];
+      pagination.value.total = resp.data?.total || 0;
+    }
   } catch (error) {
     ElMessage.warning('无法加载用户列表');
     tableData.value = [];
@@ -51,7 +60,8 @@ const handleViewReport = async (row: any) => {
   currentUser.value = row;
   try {
     const resp = await http.get(`/admin/users/${row.id}/report`);
-    userReport.value = resp.data;
+    // 后端返回格式: { data: { ... } }
+    userReport.value = resp.data?.data || resp.data;
     dialogVisible.value = true;
   } catch (error) {
     ElMessage.warning('无法加载用户报告');
@@ -105,15 +115,35 @@ const handleFilterChange = () => {
 };
 
 onMounted(() => {
+  const q = (route.query.riskLevel as string | undefined) || '';
+  if (q) {
+    // 只允许三种枚举，避免脏参数
+    filterRiskLevel.value = ['LOW', 'MEDIUM', 'HIGH'].includes(q.toUpperCase()) ? q.toUpperCase() : '';
+  }
   fetchUsers();
 });
+
+watch(
+  () => route.query.riskLevel,
+  (val) => {
+    const q = (val as string | undefined) || '';
+    const next = q && ['LOW', 'MEDIUM', 'HIGH'].includes(q.toUpperCase()) ? q.toUpperCase() : '';
+    if (next !== filterRiskLevel.value) {
+      filterRiskLevel.value = next;
+      pagination.value.currentPage = 1;
+      fetchUsers();
+    }
+  },
+);
 </script>
 
 <template>
-  <div class="user-management">
-    <el-card>
+  <div class="user-management admin-page">
+    <el-card class="management-card">
       <template #header>
-        <span>用户数据管理</span>
+        <div class="card-header">
+          <span>用户数据管理</span>
+        </div>
       </template>
 
       <!-- 搜索和筛选区域 -->
@@ -147,8 +177,15 @@ onMounted(() => {
         <el-button @click="handleReset">重置</el-button>
       </div>
 
-      <el-table v-loading="loading" :data="tableData" border stripe>
+      <el-table v-loading="loading" :data="tableData" border stripe class="data-table">
         <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column label="头像" width="80">
+          <template #default="{ row }">
+            <el-avatar :size="40" :src="row.avatar || undefined">
+              <el-icon><User /></el-icon>
+            </el-avatar>
+          </template>
+        </el-table-column>
         <el-table-column prop="username" label="用户名" width="150" />
         <el-table-column prop="nickname" label="昵称" width="150" />
         <el-table-column prop="email" label="邮箱" width="200" show-overflow-tooltip />
@@ -278,18 +315,17 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .user-management {
-  .filter-bar {
-    display: flex;
-    align-items: center;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
-    gap: 8px;
+  // 列表区块整体微调，继承 admin-page 的通用风格
+  .management-card {
+    margin-bottom: 0;
+  }
+
+  .data-table {
+    margin-top: 8px;
   }
 
   .pagination-wrapper {
     margin-top: 20px;
-    display: flex;
-    justify-content: flex-end;
   }
 
   .user-report {
@@ -298,10 +334,19 @@ onMounted(() => {
       font-size: 16px;
       font-weight: 600;
       color: #303133;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #e4e7ed;
     }
 
     .loading-placeholder {
       padding: 20px;
+    }
+
+    :deep(.el-descriptions) {
+      .el-descriptions__label {
+        font-weight: 600;
+        color: #606266;
+      }
     }
   }
 }

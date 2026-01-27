@@ -3,6 +3,8 @@ package com.xxx.antifraud.vo.knowledge;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
+import java.util.List;
+
 /**
  * 用户学习进度与成就等级 VO
  */
@@ -23,5 +25,8 @@ public class LearningProgressVO {
 
     @Schema(description = "成就等级描述")
     private String level;
+
+    @Schema(description = "已完成学习的知识ID列表")
+    private List<Long> finishedArticleIds;
 }
 

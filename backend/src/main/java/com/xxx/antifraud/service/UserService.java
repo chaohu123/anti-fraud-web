@@ -19,5 +19,11 @@ public interface UserService extends IService<User> {
     UserLoginVO login(UserLoginRequest request);
 
     UserInfoVO getUserInfo(Long userId);
+
+    void updateAvatar(Long userId, String avatarUrl);
+
+    void updateUserInfo(Long userId, String nickname);
+
+    void changePassword(Long userId, String oldPassword, String newPassword);
 }
 

@@ -164,8 +164,98 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         vo.setId(user.getId());
         vo.setUsername(user.getUsername());
         vo.setNickname(user.getNickname());
+        vo.setAvatar(user.getAvatar());
         vo.setRiskLevel(user.getRiskLevel() != null ? user.getRiskLevel().toString() : "0");
         return vo;
+    }
+
+    /**
+     * 更新用户头像
+     */
+    public void updateAvatar(Long userId, String avatarUrl) {
+        if (userId == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "用户ID不能为空");
+        }
+        if (!StringUtils.hasText(avatarUrl)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "头像URL不能为空");
+        }
+
+        User user = this.getById(userId);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        user.setAvatar(avatarUrl);
+        this.updateById(user);
+        log.info("用户头像更新成功: userId={}", userId);
+    }
+
+    /**
+     * 更新用户信息（昵称）
+     */
+    public void updateUserInfo(Long userId, String nickname) {
+        if (userId == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "用户ID不能为空");
+        }
+
+        User user = this.getById(userId);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        if (StringUtils.hasText(nickname)) {
+            String trimmedNickname = nickname.trim();
+            // 验证昵称长度
+            if (trimmedNickname.length() < 2 || trimmedNickname.length() > 32) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "昵称长度需在 2~32 之间");
+            }
+            user.setNickname(trimmedNickname);
+            this.updateById(user);
+            log.info("用户信息更新成功: userId={}, nickname={}", userId, trimmedNickname);
+        }
+    }
+
+    /**
+     * 修改密码
+     */
+    public void changePassword(Long userId, String oldPassword, String newPassword) {
+        if (userId == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "用户ID不能为空");
+        }
+        if (!StringUtils.hasText(oldPassword)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "原密码不能为空");
+        }
+        if (!StringUtils.hasText(newPassword)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "新密码不能为空");
+        }
+
+        // 验证新密码长度
+        if (newPassword.length() < 6 || newPassword.length() > 32) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "新密码长度需在 6~32 之间");
+        }
+
+        User user = this.getById(userId);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        // 验证原密码
+        String storedPasswordHash = user.getPassword();
+        if (storedPasswordHash == null || storedPasswordHash.isEmpty()) {
+            log.error("密码哈希值为空: userId={}", userId);
+            throw new BusinessException(ErrorCode.PASSWORD_INCORRECT.getCode(), "原密码错误");
+        }
+
+        boolean passwordMatches = passwordEncoder.matches(oldPassword, storedPasswordHash);
+        if (!passwordMatches) {
+            log.warn("修改密码失败: userId={}, reason=原密码不匹配", userId);
+            throw new BusinessException(ErrorCode.PASSWORD_INCORRECT.getCode(), "原密码错误");
+        }
+
+        // 更新密码
+        user.setPassword(passwordEncoder.encode(newPassword));
+        this.updateById(user);
+        log.info("用户密码修改成功: userId={}", userId);
     }
 }
 
