@@ -107,6 +107,7 @@ const next = () => {
 
 // 自动进入下一题的标志，避免重复触发
 const isAutoNexting = ref(false);
+const autoNextInitialized = ref(false);
 
 // 监听当前题目的答案变化，自动进入下一题（非最后一题）
 watch(
@@ -127,8 +128,9 @@ watch(
     const q = current.value;
     if (!q) return;
     
-    // 如果旧值为null，说明是初始化，跳过（避免初始化时触发）
-    if (oldValue == null) {
+    // 首次进入 watch 视为初始化，避免初始化时触发；之后开始允许自动跳转
+    if (!autoNextInitialized.value) {
+      autoNextInitialized.value = true;
       return;
     }
     
@@ -234,21 +236,20 @@ async function calcRisk() {
     return;
   }
   if (!userStore.userId) {
-    ElMessageBox.confirm(
-      '为了为你生成个性化报告并保存历史记录，建议先在个人中心登录/注册。现在前往个人中心吗？',
-      '未登录提示',
-      {
-        confirmButtonText: '去个人中心',
-        cancelButtonText: '暂不，继续留在本页',
-        type: 'info',
-      },
-    )
-      .then(() => {
-        router.push('/user-center');
-      })
-      .catch(() => {
-        // 用户选择留在本页，仅提示但不强制跳转
-      });
+    try {
+      await ElMessageBox.confirm(
+        '为了为你生成个性化报告并保存历史记录，建议先在个人中心登录/注册。现在前往个人中心吗？',
+        '未登录提示',
+        {
+          confirmButtonText: '去个人中心',
+          cancelButtonText: '暂不，继续留在本页',
+          type: 'info',
+        },
+      );
+      router.push('/user-center');
+    } catch {
+      // 用户选择留在本页，仅提示但不强制跳转
+    }
     return;
   }
 

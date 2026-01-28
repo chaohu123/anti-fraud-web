@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElNotification } from 'element-plus';
-import { ArrowLeft, ArrowRight, Clock, Link, Microphone, Message, Picture, WarningFilled, Lock, Trophy, Star, Reading } from '@element-plus/icons-vue';
+import { ArrowLeft, ArrowRight, Clock, Link, Microphone, Message, Picture, WarningFilled, Lock, Trophy, Star, Reading, CircleCheck, Document } from '@element-plus/icons-vue';
 import http from '../api/http';
 import { useUserStore } from '../stores/user';
 import { useAchievementStore } from '../store/achievement';
@@ -61,6 +61,16 @@ type TrainRecord = {
   missedPoints: string[];
 };
 
+// 经典诈骗案例数据结构
+type ClassicCase = {
+  id: number;
+  title: string; // 案例标题（诈骗类型）
+  summary: string; // 诈骗内容摘要
+  keyPoints: string[]; // 关键诈骗点（列表形式）
+  correctResponse: string[]; // 正确应对方式
+  relatedScamTypes: string[]; // 关联的诈骗类型（用于匹配）
+};
+
 const router = useRouter();
 const route = useRoute();
 const userStore = useUserStore();
@@ -68,11 +78,20 @@ const achievementStore = useAchievementStore();
 
 const TOTAL_TIME = 30;
 
+// 是否已提交（用于“提交后再学习”解锁；避免重复提交）
+const hasSubmitted = ref(false);
+
+// 是否要求必须选择“可疑特征”
+// - 选择“是诈骗”时：必选（至少 1 项）
+// - 选择“非诈骗”时：可选（可不选）
+const featureRequired = computed(() => userJudgement.value === 'fraud');
+
 // 步骤状态
 const currentStep = computed(() => {
   if (!userJudgement.value) return 1;
-  if (chosen.value.length === 0) return 2;
-  return 3;
+  if (featureRequired.value && chosen.value.length === 0) return 2;
+  if (!hasSubmitted.value) return 3;
+  return 4; // 提交后让步骤 3 进入 completed 态
 });
 
 // 可疑特征区域是否展开（当选择"是诈骗"时自动展开）
@@ -89,6 +108,10 @@ const showAchievementCelebration = ref(false);
 
 // 反馈详细解析是否展开
 const detailedAnalysisVisible = ref(false);
+
+// 经典案例模块相关状态
+const classicCasesExpanded = ref(false); // 案例模块是否展开
+const understoodCases = ref<Set<number>>(new Set()); // 已理解的案例ID集合
 
 const loading = ref(false);
 const cases = ref<TrainingCase[]>([]);
@@ -138,7 +161,24 @@ const timerColor = computed(() => {
   return '#67c23a';
 });
 
-const canSubmit = computed(() => !!currentCase.value && !!userJudgement.value && chosen.value.length > 0 && timeLeft.value > 0);
+const canSubmit = computed(() => {
+  if (!currentCase.value) return false;
+  if (!userJudgement.value) return false;
+  if (timeLeft.value <= 0) return false;
+  if (hasSubmitted.value) return false; // 防止重复提交
+  if (featureRequired.value && chosen.value.length === 0) return false;
+  return true;
+});
+
+const submitTipText = computed(() => {
+  if (hasSubmitted.value) return '已提交本题，可查看解析与案例后进入下一关。';
+  if (timeLeft.value <= 0) return '本关已超时，请点击“下一关”继续训练。';
+  if (!userJudgement.value) return '请先选择“是诈骗 / 非诈骗”。';
+  if (featureRequired.value && chosen.value.length === 0) return '请选择至少 1 项你认为可疑的特征。';
+  return '已完成选择，可以提交。';
+});
+
+const submitTipOk = computed(() => canSubmit.value);
 
 const scenarioIcon = computed(() => {
   const k = currentCase.value?.scenario.kind;
@@ -149,11 +189,11 @@ const scenarioIcon = computed(() => {
 
 function escapeHtml(input: string) {
   return input
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function highlightText(raw: string, highlightSuspicious = false) {
@@ -166,7 +206,10 @@ function highlightText(raw: string, highlightSuspicious = false) {
     { re: /(立刻|马上|紧急|否则|将冻结|最后通牒|限时|立即处理)/g, cls: 'hl-urgent' },
     { re: /(转账|汇款|刷流水|验证码|链接|点击|下载|远程|屏幕共享)/g, cls: 'hl-key' },
   ];
-  let result = patterns.reduce((acc, p) => acc.replace(p.re, (m) => `<span class="hl ${p.cls}">${m}</span>`), safe);
+  let result = patterns.reduce(
+    (acc, p) => acc.replace(p.re, (m: string) => `<span class="hl ${p.cls}">${m}</span>`),
+    safe,
+  );
   
   // 如果是在反馈模式下，高亮可疑点
   if (highlightSuspicious && currentCase.value && lastResult.value) {
@@ -174,7 +217,7 @@ function highlightText(raw: string, highlightSuspicious = false) {
     suspiciousPoints.forEach(point => {
       // 根据特征点高亮相关内容
       if (point.includes('域名') || point.includes('链接')) {
-        result = result.replace(/(https?:\/\/[^\s)]+)/gi, (match) => {
+        result = result.replace(/(https?:\/\/[^\s)]+)/gi, (match: string) => {
           if (!match.includes('hl-link')) {
             return `<span class="hl hl-link hl-suspicious" data-tooltip="非官方域名，真正的官网域名应为官方渠道">${match}</span>`;
           }
@@ -182,7 +225,7 @@ function highlightText(raw: string, highlightSuspicious = false) {
         });
       }
       if (point.includes('恐吓') || point.includes('紧急')) {
-        result = result.replace(/(立刻|马上|紧急|否则|将冻结|最后通牒|限时|立即处理)/g, (match) => {
+        result = result.replace(/(立刻|马上|紧急|否则|将冻结|最后通牒|限时|立即处理)/g, (match: string) => {
           if (!match.includes('hl-urgent')) {
             return `<span class="hl hl-urgent hl-suspicious" data-tooltip="这是典型的利用恐惧和紧迫感的恐吓话术">${match}</span>`;
           }
@@ -219,10 +262,18 @@ function resetInteraction() {
   chosen.value = [];
   feedbackVisible.value = false;
   lastResult.value = null;
+  hasSubmitted.value = false;
   featurePanelExpanded.value = false;
   featurePanelHighlight.value = false;
   validationError.value = { type: null, message: '' };
   detailedAnalysisVisible.value = false;
+  classicCasesExpanded.value = false;
+}
+
+// 标记案例为已理解
+function markCaseUnderstood(caseId: number) {
+  understoodCases.value.add(caseId);
+  ElMessage.success('已标记为已理解');
 }
 
 function loadLocalRecords(): TrainRecord[] {
@@ -301,6 +352,66 @@ function normalizeFromBackend(item: any, idx: number): TrainingCase {
     scenario,
   };
 }
+
+// 经典诈骗案例数据
+const classicCasesData: ClassicCase[] = [
+  {
+    id: 1,
+    title: '冒充客服退款诈骗',
+    summary: '诈骗分子冒充电商平台或银行客服，以订单异常、退款理赔为由，诱导用户点击钓鱼链接或提供验证码，最终盗取账户资金。',
+    keyPoints: ['冒充官方机构', '制造紧急风险', '引导点击外部链接', '索要验证码'],
+    correctResponse: ['退款只在原支付渠道完成，不添加私人客服号', '任何索要验证码的"客服"都高度可疑', '用官方App/官网入口自行查询订单'],
+    relatedScamTypes: ['冒充客服（退款理赔）', '冒充客服', '退款理赔', '短信/聊天诈骗', '聊天诈骗'],
+  },
+  {
+    id: 2,
+    title: '冒充银行账户冻结诈骗',
+    summary: '通过短信或电话冒充银行，声称账户存在风险需要立即验证，否则将冻结账号，诱导用户点击虚假链接输入银行卡信息。',
+    keyPoints: ['可疑短链/非官方域名', '以冻结账号恐吓', '要求立刻操作', '诱导输入卡号/密码'],
+    correctResponse: ['不要点击短信链接，直接打开银行官方App核实', '任何"冻结/征信"威胁都先冷静核验', '银行不会通过短信链接要求验证'],
+    relatedScamTypes: ['冒充银行（账户冻结）', '冒充银行', '账户冻结', '短信/聊天诈骗', '聊天诈骗'],
+  },
+  {
+    id: 3,
+    title: '钓鱼网站登录盗号',
+    summary: '通过仿真页面和相近域名，诱导用户输入账号密码，再利用短信验证码完成盗号，最终窃取账户资金或个人信息。',
+    keyPoints: ['域名可疑/拼写相近', '引导输入账号密码', '页面提示异常紧急', '诱导下载/安装插件'],
+    correctResponse: ['核对域名与证书，尽量使用收藏夹/官方入口', '不要在陌生页面输入账号密码或验证码', '注意观察URL拼写和SSL证书'],
+    relatedScamTypes: ['钓鱼网站（登录盗号）', '钓鱼网站', '网络钓鱼', '钓鱼邮件'],
+  },
+  {
+    id: 4,
+    title: '冒充公检法诈骗',
+    summary: '冒充公检法机关，声称涉嫌洗钱、犯罪等，要求配合调查并转入"安全账户"，同时要求保密，最终骗取资金。',
+    keyPoints: ['冒充公检法/权威身份', '诱导转入"安全账户"', '要求保密', '紧急威胁'],
+    correctResponse: ['挂断后拨打110或官方电话核实，不要回拨对方号码', '涉及资金操作一律先线下核验', '公检法不会通过电话要求转账'],
+    relatedScamTypes: ['诈骗语音（冒充公检法）', '冒充公检法', '公检法', '诈骗语音'],
+  },
+  {
+    id: 5,
+    title: '刷单返利诈骗',
+    summary: '以高额返利为诱饵，要求先垫付资金完成刷单任务，前期小额返利获取信任，后期大额投入后卷款跑路。',
+    keyPoints: ['高收益诱导', '要求先垫付资金', '前期小额返利', '后期大额投入'],
+    correctResponse: ['刷单本身就是违法行为', '任何要求先垫付的都是诈骗', '高收益必然伴随高风险'],
+    relatedScamTypes: ['刷单返利', '刷单', '返利', '短信/聊天诈骗', '聊天诈骗'],
+  },
+  {
+    id: 6,
+    title: '冒充熟人诈骗',
+    summary: '通过盗取或伪造社交账号，冒充好友或家人，以紧急情况为由要求转账，利用信任关系实施诈骗。',
+    keyPoints: ['冒充熟人身份', '制造紧急情况', '要求转账/汇款', '拒绝语音/视频验证'],
+    correctResponse: ['通过其他渠道核实身份', '涉及转账务必电话或视频确认', '不要轻信文字消息'],
+    relatedScamTypes: ['冒充熟人', '熟人诈骗', '短信/聊天诈骗', '聊天诈骗'],
+  },
+  {
+    id: 7,
+    title: '通用防骗提醒',
+    summary: '无论遇到何种类型的诈骗，都要保持警惕，不轻信、不转账、不泄露个人信息。',
+    keyPoints: ['不点击陌生链接', '不提供验证码', '不转账给陌生人', '通过官方渠道核实'],
+    correctResponse: ['遇到可疑情况先冷静思考', '通过官方渠道核实信息', '必要时咨询家人或报警'],
+    relatedScamTypes: ['*'], // 通用匹配，当没有其他匹配时显示
+  },
+];
 
 const builtinCases: TrainingCase[] = [
   {
@@ -463,12 +574,20 @@ function updatePotentialAchievements() {
 async function submit() {
   const c = currentCase.value;
   if (!c) return;
+  if (hasSubmitted.value) return;
   if (!userJudgement.value) {
-    ElMessage.warning('请先选择“是诈骗 / 非诈骗”。');
+    validationError.value = { type: 'judgement', message: '请先选择“是诈骗 / 非诈骗”。' };
+    ElMessage.warning(validationError.value.message);
     return;
   }
-  if (!chosen.value.length) {
-    ElMessage.warning('请至少勾选 1 项你认为可疑的特征。');
+  if (featureRequired.value && !chosen.value.length) {
+    validationError.value = { type: 'feature', message: '请选择至少 1 项你认为可疑的特征。' };
+    featurePanelExpanded.value = true;
+    featurePanelHighlight.value = true;
+    setTimeout(() => {
+      featurePanelHighlight.value = false;
+    }, 1200);
+    ElMessage.warning(validationError.value.message);
     return;
   }
   if (timeLeft.value <= 0) {
@@ -477,6 +596,7 @@ async function submit() {
   }
 
   stopTimer();
+  validationError.value = { type: null, message: '' };
 
   const hitPoints = c.suspiciousPoints.filter((p) => chosen.value.includes(p));
   const missedPoints = c.suspiciousPoints.filter((p) => !chosen.value.includes(p));
@@ -485,6 +605,14 @@ async function submit() {
 
   lastResult.value = { correct, missedPoints, hitPoints, timeSpentMs: spent };
   feedbackVisible.value = true;
+  hasSubmitted.value = true;
+
+  // 提交后自动展开“经典案例”模块（符合：先判断 → 再学习）
+  if (matchedClassicCases.value.length > 0) {
+    setTimeout(() => {
+      classicCasesExpanded.value = true;
+    }, 500);
+  }
 
   // 训练次数：以“完成提交”为准；同时正确则计入徽章逻辑
   if (correct) userStore.recordTraining();
@@ -502,24 +630,32 @@ async function submit() {
 
   // 若登录则上报（不影响体验）
   if (userStore.userId) {
-    http
-      .post('/train/records', {
+    // 通过序号避免“后到的结果覆盖先到的结果/提示”
+    submitReportSeq += 1;
+    const seq = submitReportSeq;
+    try {
+      await http.post('/train/records', {
         userId: userStore.userId,
         caseId: c.id,
         answer: userJudgement.value === 'fraud' ? 'FRAUD' : 'SAFE',
         correct,
         timeSpentMs: spent,
-      })
-      .catch(() => {
+      });
+    } catch {
+      // 只提示最新一次提交的失败，避免用户快速切关时出现“旧请求失败”干扰当前操作
+      if (seq === submitReportSeq) {
         ElNotification({
           title: '提示',
           message: '训练记录上报失败（不影响继续训练），请检查后端是否启动。',
           type: 'warning',
           duration: 2500,
         });
-      });
+      }
+    }
   }
 }
+
+let submitReportSeq = 0;
 
 function nextLevel() {
   feedbackVisible.value = false;
@@ -532,6 +668,10 @@ function nextLevel() {
 
 // 监听选择"是诈骗"后展开特征区域
 watch(userJudgement, (newVal) => {
+  // 清理“未选择判断”的错误态
+  if (validationError.value.type === 'judgement' && newVal) {
+    validationError.value = { type: null, message: '' };
+  }
   if (newVal === 'fraud') {
     featurePanelExpanded.value = true;
     featurePanelHighlight.value = true;
@@ -541,10 +681,82 @@ watch(userJudgement, (newVal) => {
   }
 });
 
+// 勾选变化后清理“未选择特征”的错误态（仅在必选时）
+watch(chosen, (list) => {
+  if (validationError.value.type === 'feature') {
+    if (!featureRequired.value || list.length > 0) {
+      validationError.value = { type: null, message: '' };
+    }
+  }
+});
+
+// 根据当前题目过滤匹配的经典案例
+const matchedClassicCases = computed(() => {
+  if (!currentCase.value) return [];
+  const scamType = currentCase.value.scamType;
+  if (!scamType) return [];
+  
+  // 提取基础类型，去除括号、分隔符等
+  const normalizeType = (type: string): string => {
+    return type.split('（')[0].split('(')[0].split('·')[0].split('/')[0].trim();
+  };
+  
+  const baseType = normalizeType(scamType);
+  
+  // 匹配函数
+  const isMatch = (relatedType: string): boolean => {
+    const relatedBase = normalizeType(relatedType);
+    
+    // 1. 精确匹配
+    if (scamType === relatedType) return true;
+    
+    // 2. 基础类型完全匹配
+    if (baseType === relatedBase && baseType.length > 0) return true;
+    
+    // 3. 包含匹配（双向，至少2个字符）
+    if (baseType.length >= 2 && relatedBase.length >= 2) {
+      if (baseType.includes(relatedBase) || relatedBase.includes(baseType)) return true;
+    }
+    if (scamType.length >= 2 && relatedType.length >= 2) {
+      if (scamType.includes(relatedType) || relatedType.includes(scamType)) return true;
+    }
+    
+    return false;
+  };
+  
+  // 过滤匹配的案例（排除“通用匹配符 *”的案例）
+  const matched = classicCasesData.filter((caseItem) => {
+    const isGeneric = caseItem.relatedScamTypes.some((t) => t === '*');
+    if (isGeneric) return false;
+    return caseItem.relatedScamTypes.some(isMatch);
+  });
+  
+  // 如果没有匹配到任何案例，返回通用案例作为兜底
+  if (matched.length === 0) {
+    const genericCase = classicCasesData.find((c) => c.relatedScamTypes.some((t) => t === '*'));
+    return genericCase ? [genericCase] : [];
+  }
+  
+  return matched;
+});
+
+// 提交后自动展开案例模块（符合：先判断 → 再学习）
+watch(feedbackVisible, (visible) => {
+  if (!visible) return;
+  if (!hasSubmitted.value) return;
+  if (matchedClassicCases.value.length === 0) return;
+  if (classicCasesExpanded.value) return;
+  setTimeout(() => {
+    classicCasesExpanded.value = true;
+  }, 500);
+});
+
 watch(currentIndex, () => {
   // 切关时轻微提醒：避免残留选择
   resetInteraction();
   updatePotentialAchievements();
+  // 重置案例展开状态
+  classicCasesExpanded.value = false;
 });
 
 onMounted(async () => {
@@ -634,8 +846,10 @@ onBeforeUnmount(() => {
     <el-skeleton v-if="loading" :rows="6" animated />
 
     <div v-else class="grid" v-if="currentCase">
-      <!-- 诈骗场景展示区 -->
-      <el-card class="scene" shadow="hover" :class="{ 'with-feedback': feedbackVisible && lastResult }">
+      <!-- 左侧列：场景和案例 -->
+      <div class="left-column">
+        <!-- 诈骗场景展示区 -->
+        <el-card class="scene" shadow="hover" :class="{ 'with-feedback': feedbackVisible && lastResult }">
         <template #header>
           <div class="scene-header">
             <div class="title">
@@ -658,19 +872,19 @@ onBeforeUnmount(() => {
             <div class="chat-name">{{ currentCase.scenario.from }}</div>
             <div class="chat-tip">请识别话术、链接与引导动作</div>
           </div>
-          <div class="chat-body" :class="{ 'with-annotations': feedbackVisible && lastResult }">
+          <div class="chat-body" :class="{ 'with-annotations': feedbackVisible && !!lastResult }">
             <div
               v-for="(m, i) in currentCase.scenario.messages"
               :key="i"
               class="bubble"
               :class="m.from === 'scammer' ? 'left' : 'right'"
             >
-              <div class="bubble-inner" v-html="highlightText(m.text, feedbackVisible && lastResult)"></div>
+              <div class="bubble-inner" v-html="highlightText(m.text, feedbackVisible && !!lastResult)"></div>
             </div>
           </div>
           <div class="chat-bottom">
             <el-icon><WarningFilled /></el-icon>
-            <span>提示：真实训练中请勿点击任何陌生链接。</span>
+            <span>提示：真实生活中请勿点击任何陌生链接。</span>
           </div>
         </div>
 
@@ -715,7 +929,118 @@ onBeforeUnmount(() => {
             <div class="transcript-text" v-html="highlightText(currentCase.scenario.transcript)"></div>
           </div>
         </div>
-      </el-card>
+        </el-card>
+
+        <!-- 经典诈骗案例分享模块 -->
+        <el-card 
+          class="classic-cases-card" 
+          shadow="hover"
+          :class="{ 
+            'disabled': !hasSubmitted,
+            'expanded': classicCasesExpanded
+          }"
+        >
+          <template #header>
+            <div class="classic-cases-header" @click="hasSubmitted && (classicCasesExpanded = !classicCasesExpanded)">
+              <div class="header-left">
+                <el-icon><Document /></el-icon>
+                <span class="header-title">
+                  {{ hasSubmitted ? '相似经典诈骗案例' : '真实诈骗案例参考（答题后解锁）' }}
+                </span>
+              </div>
+              <div class="header-right">
+                <el-tag v-if="hasSubmitted && matchedClassicCases.length > 0" size="small" type="info">
+                  {{ matchedClassicCases.length }} 个相关案例
+                </el-tag>
+                <el-icon 
+                  v-if="hasSubmitted" 
+                  class="expand-icon"
+                  :class="{ 'rotated': classicCasesExpanded }"
+                >
+                  <ArrowRight />
+                </el-icon>
+              </div>
+            </div>
+          </template>
+
+          <transition name="expand">
+            <div v-show="classicCasesExpanded && hasSubmitted" class="classic-cases-content">
+              <div v-if="matchedClassicCases.length === 0" class="no-cases">
+                <el-empty description="暂无匹配的经典案例" :image-size="80" />
+              </div>
+              <el-carousel 
+                v-else 
+                :height="'auto'"
+                indicator-position="outside"
+                arrow="always"
+                class="cases-carousel"
+              >
+                <el-carousel-item 
+                  v-for="caseItem in matchedClassicCases" 
+                  :key="caseItem.id"
+                >
+                  <div 
+                    class="case-item"
+                    :class="{ 'understood': understoodCases.has(caseItem.id) }"
+                  >
+                    <div class="case-header">
+                      <h4 class="case-title">{{ caseItem.title }}</h4>
+                      <el-tag v-if="understoodCases.has(caseItem.id)" type="success" size="small">
+                        <el-icon><CircleCheck /></el-icon>
+                        已理解
+                      </el-tag>
+                    </div>
+                    
+                    <div class="case-summary">{{ caseItem.summary }}</div>
+
+                    <!-- 左右对比布局：左侧高危/错误做法，右侧正确应对方式 -->
+                    <div class="case-columns">
+                      <!-- 左侧：关键诈骗点 / 高危信号（用户若跟随就是错误做法） -->
+                      <div class="case-column left">
+                        <div class="section-title">
+                          <el-icon><WarningFilled /></el-icon>
+                          <span>容易踩坑的做法</span>
+                        </div>
+                        <ul class="key-points">
+                          <li v-for="(point, idx) in caseItem.keyPoints" :key="idx">
+                            <span class="point-highlight">{{ point }}</span>
+                          </li>
+                        </ul>
+                      </div>
+
+                      <!-- 右侧：正确应对方式 -->
+                      <div class="case-column right">
+                        <div class="section-title">
+                          <el-icon><CircleCheck /></el-icon>
+                          <span>正确应对方式</span>
+                        </div>
+                        <ul class="correct-response">
+                          <li v-for="(response, idx) in caseItem.correctResponse" :key="idx">
+                            <el-icon class="check-icon"><CircleCheck /></el-icon>
+                            <span>{{ response }}</span>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                    
+                    <div v-if="!understoodCases.has(caseItem.id)" class="case-footer">
+                      <el-button 
+                        type="primary" 
+                        size="small" 
+                        plain
+                        @click="markCaseUnderstood(caseItem.id)"
+                      >
+                        <el-icon><CircleCheck /></el-icon>
+                        我已理解该套路
+                      </el-button>
+                    </div>
+                  </div>
+                </el-carousel-item>
+              </el-carousel>
+            </div>
+          </transition>
+        </el-card>
+      </div>
 
       <!-- 用户判断区 -->
       <el-card 
@@ -766,9 +1091,11 @@ onBeforeUnmount(() => {
           >
             <div class="card-section-title">
               选择你认为可疑的特征（多选）
-              <span class="required-badge">必选</span>
+              <span v-if="featureRequired" class="required-badge">必选</span>
+              <span v-else class="optional-badge">可选</span>
             </div>
-            <div class="hint-before">建议：至少选择 1 项；越精准越能提升识别能力。</div>
+            <div v-if="featureRequired" class="hint-before">建议：至少选择 1 项；越精准越能提升识别能力。</div>
+            <div v-else class="hint-before">可选：如果你觉得有可疑点，也可以勾选；不勾选也能提交。</div>
             <el-checkbox-group v-model="chosen" class="feature-group">
               <el-checkbox v-for="opt in currentCase.options" :key="opt" :value="opt">{{ opt }}</el-checkbox>
             </el-checkbox-group>
@@ -781,10 +1108,9 @@ onBeforeUnmount(() => {
 
         <div class="submit-row">
           <el-button type="primary" size="large" :disabled="!canSubmit" @click="submit">提交</el-button>
-          <el-button size="large" plain @click="nextLevel">下一关</el-button>
-          <div class="submit-tip" :class="{ ok: canSubmit }">
-            <span v-if="canSubmit">已完成选择，可以提交。</span>
-            <span v-else>请选择“是/非”并勾选至少 1 项可疑特征（且未超时）。</span>
+          <el-button size="large" plain @click="nextLevel">{{ hasSubmitted || timeLeft <= 0 ? '下一关' : '跳过' }}</el-button>
+          <div class="submit-tip" :class="{ ok: submitTipOk }">
+            <span>{{ submitTipText }}</span>
           </div>
         </div>
       </el-card>
@@ -1155,6 +1481,12 @@ onBeforeUnmount(() => {
   margin-top: 8px;
 }
 
+.left-column {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
 /* 安全横幅 */
 .safety-banner {
   display: flex;
@@ -1454,6 +1786,15 @@ onBeforeUnmount(() => {
   font-weight: 600;
 }
 
+.optional-badge {
+  font-size: 11px;
+  padding: 2px 6px;
+  background: rgba(102, 126, 234, 0.12);
+  color: var(--el-color-primary);
+  border-radius: 4px;
+  font-weight: 600;
+}
+
 .hint-before {
   margin-bottom: 16px;
   color: var(--af-muted);
@@ -1720,6 +2061,299 @@ onBeforeUnmount(() => {
   }
 }
 
+/* 经典诈骗案例模块样式 */
+.classic-cases-card {
+  margin-top: 24px;
+  background: linear-gradient(135deg, rgba(240, 248, 255, 0.55), rgba(245, 247, 255, 0.55));
+  border: 1px dashed rgba(102, 126, 234, 0.22);
+  transition: all 0.3s ease;
+}
+
+.classic-cases-card.disabled {
+  opacity: 0.62;
+  background: linear-gradient(135deg, rgba(245, 247, 250, 0.6), rgba(240, 242, 245, 0.6));
+  border-color: rgba(0, 0, 0, 0.1);
+  cursor: not-allowed;
+}
+
+.classic-cases-card.expanded {
+  border-color: rgba(102, 126, 234, 0.5);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+.classic-cases-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+  padding: 6px 0;
+}
+
+.classic-cases-card.disabled .classic-cases-header {
+  cursor: not-allowed;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.header-left .el-icon {
+  font-size: 18px;
+  color: var(--el-color-primary);
+}
+
+.header-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--el-color-primary);
+}
+
+.classic-cases-card.disabled .header-title {
+  color: var(--af-muted);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.expand-icon {
+  transition: transform 0.3s ease;
+  color: var(--el-color-primary);
+}
+
+.expand-icon.rotated {
+  transform: rotate(90deg);
+}
+
+.classic-cases-content {
+  padding-top: 6px;
+}
+
+.no-cases {
+  padding: 20px;
+  text-align: center;
+}
+
+/* 案例轮播容器 */
+.cases-carousel {
+  --case-carousel-h: 520px;
+  margin: 0 -10px;
+  padding: 6px 10px 40px 10px;
+}
+
+:deep(.cases-carousel .el-carousel__container) {
+  height: var(--case-carousel-h) !important;
+}
+
+:deep(.cases-carousel .el-carousel__item) {
+  padding: 0 8px;
+  display: flex;
+  align-items: stretch;
+}
+
+:deep(.cases-carousel .el-carousel__arrow) {
+  background-color: rgba(102, 126, 234, 0.18);
+  color: rgba(30, 58, 138, 0.9);
+  border: 1px solid rgba(102, 126, 234, 0.22);
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  transition: all 0.25s ease;
+  backdrop-filter: blur(6px);
+}
+
+:deep(.cases-carousel .el-carousel__arrow:hover) {
+  background-color: rgba(102, 126, 234, 0.28);
+  transform: translateY(-1px);
+}
+
+:deep(.cases-carousel .el-carousel__indicators) {
+  margin-top: 16px;
+}
+
+:deep(.cases-carousel .el-carousel__indicator) {
+  .el-carousel__button {
+    background-color: rgba(102, 126, 234, 0.3);
+    transition: all 0.3s;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+
+    &:hover {
+      background-color: rgba(102, 126, 234, 0.6);
+    }
+  }
+
+  &.is-active .el-carousel__button {
+    background-color: rgba(102, 126, 234, 1);
+    width: 24px;
+    border-radius: 4px;
+  }
+}
+
+.case-item {
+  background: #fff;
+  border-radius: 12px;
+  padding: 18px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+}
+
+.case-item:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.case-item.understood {
+  background: linear-gradient(135deg, rgba(103, 194, 58, 0.05), rgba(103, 194, 58, 0.02));
+  border-color: rgba(103, 194, 58, 0.3);
+}
+
+.case-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.case-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #303133;
+  margin: 0;
+  flex: 1;
+}
+
+.case-summary {
+  font-size: 14px;
+  color: #606266;
+  line-height: 1.6;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: rgba(102, 126, 234, 0.05);
+  border-radius: 8px;
+  border-left: 3px solid var(--el-color-primary);
+}
+
+/* 左右对比布局：左错误/高危，右正确做法 */
+.case-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.case-column {
+  background: #f9fafb;
+  border-radius: 10px;
+  padding: 12px 12px 10px;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+}
+
+.case-column.left {
+  background: rgba(254, 242, 242, 0.9);
+  border: 1px solid rgba(248, 113, 113, 0.4);
+}
+
+.case-column.right {
+  background: rgba(240, 253, 244, 0.9);
+  border: 1px solid rgba(74, 222, 128, 0.4);
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 14px;
+  color: #303133;
+  margin-bottom: 10px;
+}
+
+.section-title .el-icon {
+  font-size: 16px;
+  color: var(--el-color-warning);
+}
+
+.case-column.right .section-title .el-icon {
+  color: var(--el-color-success);
+}
+
+.key-points {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.key-points li {
+  padding: 8px 12px;
+  background: rgba(245, 108, 108, 0.08);
+  border-radius: 6px;
+  border-left: 3px solid #f56c6c;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.point-highlight {
+  color: #f56c6c;
+  font-weight: 600;
+}
+
+.correct-response {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.correct-response li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(103, 194, 58, 0.08);
+  border-radius: 6px;
+  border-left: 3px solid #67c23a;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.check-icon {
+  color: #67c23a;
+  font-size: 16px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.case-footer {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  display: flex;
+  justify-content: flex-end;
+}
+
 /* 响应式优化 */
 @media (max-width: 980px) {
   .grid {
@@ -1755,6 +2389,35 @@ onBeforeUnmount(() => {
   
   .potential-achievements {
     margin-bottom: 0;
+  }
+
+  .classic-cases-card {
+    margin-top: 16px;
+  }
+
+  .case-item {
+    padding: 16px;
+    min-height: 350px;
+  }
+
+  .cases-carousel {
+    margin: 0 -8px;
+    padding: 0 8px;
+    --case-carousel-h: 560px;
+  }
+
+  :deep(.cases-carousel .el-carousel__arrow) {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+
+  :deep(.cases-carousel .el-carousel__container) {
+    min-height: 350px;
+  }
+
+  .case-columns {
+    grid-template-columns: 1fr;
   }
 }
 </style>

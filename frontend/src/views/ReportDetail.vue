@@ -12,7 +12,7 @@ const userStore = useUserStore();
 const assessmentStore = useAssessmentStore();
 
 const reportId = computed(() => route.params.id as string);
-const report = ref(assessmentStore.getReportById(reportId.value));
+const report = computed(() => assessmentStore.getReportById(reportId.value));
 
 // 风险等级标签
 const riskLevelLabel = computed(() => {

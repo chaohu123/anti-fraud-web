@@ -1,10 +1,20 @@
 <template>
   <div class="home-page">
+    <!-- 路由守卫从 /admin 拦回首页时的提示（仅在 ?denied=admin 时展示一次） -->
+    <el-alert
+      v-if="showAdminDenied"
+      type="warning"
+      show-icon
+      closable
+      class="admin-denied-alert"
+      title="当前账号无权访问管理后台"
+      description="如需进入管理后台，请使用管理员账号登录。"
+    />
     <!-- Hero -->
     <el-card class="hero" shadow="never">
       <div class="hero-container">
         <div class="hero-left">
-          <p class="hero-eyebrow">反诈训练 + 风险评估 · 毕业设计展示</p>
+          <p class="hero-eyebrow">反诈训练 + 风险评估</p>
           <h1 class="hero-title">反诈训练营 · Anti-Fraud Lab</h1>
           <p class="hero-sub">模拟真实诈骗场景，通过互动训练与风险评估，提升防骗能力。</p>
           <div class="hero-actions">
@@ -13,7 +23,7 @@
           </div>
           <div class="hero-badges">
             <el-tag type="success" effect="dark" round>专业可信</el-tag>
-            <el-tag type="info" effect="dark" round>毕业设计演示</el-tag>
+            <!-- 删除“毕业设计演示”标识 -->
             <el-tag type="warning" effect="dark" round>互动训练</el-tag>
           </div>
         </div>
@@ -152,14 +162,19 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { ArrowRight, Lock, DataAnalysis, Files, MagicStick } from '@element-plus/icons-vue';
 import { useUserStore } from '../stores/user';
 import { useKnowledgeStore } from '../store/knowledge';
 
 const router = useRouter();
+const route = useRoute();
 const user = useUserStore();
 const knowledge = useKnowledgeStore();
+
+const showAdminDenied = computed(
+  () => typeof route.query.denied === 'string' && route.query.denied === 'admin',
+);
 
 const riskLabel = computed(() => {
   const raw: any = (user as any).riskLevel;
@@ -308,6 +323,10 @@ const recommendedLearning = computed(() => {
   gap: 24px;
   padding: 0 4px;
   animation: fadeIn 0.6s ease-out;
+}
+
+.admin-denied-alert {
+  margin-bottom: 12px;
 }
 
 @keyframes fadeIn {

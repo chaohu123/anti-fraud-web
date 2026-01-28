@@ -18,6 +18,7 @@ import FraudCaseManagement from '../views/admin/FraudCaseManagement.vue';
 import TrainingQuestionManagement from '../views/admin/TrainingQuestionManagement.vue';
 import RiskAssessmentManagement from '../views/admin/RiskAssessmentManagement.vue';
 import KnowledgeManagement from '../views/admin/KnowledgeManagement.vue';
+import CarouselManagement from '../views/admin/CarouselManagement.vue';
 import AchievementManagement from '../views/admin/AchievementManagement.vue';
 import UserManagement from '../views/admin/UserManagement.vue';
 import SystemSettings from '../views/admin/SystemSettings.vue';
@@ -67,6 +68,11 @@ const routes: RouteRecordRaw[] = [
         path: 'knowledge',
         name: 'admin-knowledge',
         component: KnowledgeManagement,
+      },
+      {
+        path: 'carousel',
+        name: 'admin-carousel',
+        component: CarouselManagement,
       },
       {
         path: 'achievement',

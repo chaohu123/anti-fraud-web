@@ -161,14 +161,14 @@ let isMarkedAsRead = false; // 防止重复标记
 onMounted(() => {
   knowledgeStore.hydrate();
   achievementStore.hydrate();
-  loadDetail();
+  void loadDetail();
 });
 
 onUnmounted(() => {
   stopViewTracking();
 });
 
-function loadDetail() {
+async function loadDetail() {
   const id = Number(route.params.id);
   if (!id) {
     error.value = '无效的知识ID';
@@ -179,51 +179,52 @@ function loadDetail() {
   error.value = '';
   isMarkedAsRead = false; // 重置标记状态
 
-  http
-    .get(`/knowledge/${id}`)
-    .then((resp) => {
-      detail.value = resp.data;
-    })
-    .catch((err) => {
-      error.value = '加载知识详情失败，请稍后重试';
-      console.error(err);
-      // 使用 mock 数据作为降级方案
-      detail.value = {
-        id,
-        category: '冒充客服',
-        title: '假冒客服退款诈骗',
-        summary: '诈骗分子冒充电商、银行等客服，以退款、账户异常等为由，诱导用户提供验证码或点击钓鱼链接。',
-        riskLevel: '高',
-        preventionTips: [
-          '官方客服不会主动索要验证码',
-          '退款通常原路返回，无需额外操作',
-          '通过官方渠道核实客服身份',
-          '警惕要求转账或提供密码的客服',
-        ],
-        commonTactics: [
-          '您的订单出现异常，需要退款，请点击链接操作',
-          '您的账户存在风险，需要验证身份，请提供验证码',
-        ],
-        cases: [
-          '张女士接到自称某电商平台客服的电话，称其购买的商品有质量问题需要退款，要求张女士点击链接填写银行卡信息。张女士按照要求操作后，银行卡被盗刷5000元。',
-        ],
-        content: '冒充客服诈骗是当前最常见的诈骗手段之一。\n\n识别要点：\n1. 官方客服不会主动索要验证码、密码等敏感信息\n2. 退款通常原路返回，无需额外操作',
-        relatedTraining: '短信识别训练、电话识别训练',
-      };
-    })
-    .finally(() => {
-      loading.value = false;
-      // 详情加载完成后，如果未标记为已学，开始计时
-      if (detail.value && !knowledgeStore.isRead(detail.value.id)) {
-        startViewTracking();
-      }
-    });
+  try {
+    const resp = await http.get(`/knowledge/${id}`);
+    const d = (resp as any)?.data ?? null;
+    // 最小结构校验，避免后续使用 detail.id 时出现空指针/undefined
+    if (!d || typeof d !== 'object' || d.id == null) {
+      throw new Error('invalid response');
+    }
+    detail.value = d as KnowledgeDetail;
+  } catch (err) {
+    error.value = '加载知识详情失败，请稍后重试';
+    console.error(err);
+    // 使用 mock 数据作为降级方案
+    detail.value = {
+      id,
+      category: '冒充客服',
+      title: '假冒客服退款诈骗',
+      summary: '诈骗分子冒充电商、银行等客服，以退款、账户异常等为由，诱导用户提供验证码或点击钓鱼链接。',
+      riskLevel: '高',
+      preventionTips: [
+        '官方客服不会主动索要验证码',
+        '退款通常原路返回，无需额外操作',
+        '通过官方渠道核实客服身份',
+        '警惕要求转账或提供密码的客服',
+      ],
+      commonTactics: [
+        '您的订单出现异常，需要退款，请点击链接操作',
+        '您的账户存在风险，需要验证身份，请提供验证码',
+      ],
+      cases: [
+        '张女士接到自称某电商平台客服的电话，称其购买的商品有质量问题需要退款，要求张女士点击链接填写银行卡信息。张女士按照要求操作后，银行卡被盗刷5000元。',
+      ],
+      content: '冒充客服诈骗是当前最常见的诈骗手段之一。\n\n识别要点：\n1. 官方客服不会主动索要验证码、密码等敏感信息\n2. 退款通常原路返回，无需额外操作',
+      relatedTraining: '短信识别训练、电话识别训练',
+    };
+  } finally {
+    loading.value = false;
+    // 详情加载完成后开始计时（内部会自行判断是否已学）
+    startViewTracking();
+  }
 }
 
 // 开始浏览时间跟踪
 function startViewTracking() {
+  if (!detail.value) return;
   // 如果已经标记为已学，不启动计时
-  if (detail.value && knowledgeStore.isRead(detail.value.id)) {
+  if (knowledgeStore.isRead(detail.value.id)) {
     return;
   }
 

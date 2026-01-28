@@ -917,12 +917,12 @@ const goReportDetail = (id?: string) => {
 
 // 跳转登录
 const goLogin = () => {
-  router.push('/login');
+  router.push({ path: '/login', query: { redirect: '/user-center' } });
 };
 
 // 跳转注册
 const goRegister = () => {
-  router.push('/login?tab=register');
+  router.push({ path: '/login', query: { tab: 'register', redirect: '/user-center' } });
 };
 
 // 提交账号设置

@@ -13,8 +13,10 @@ D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\config\MyMet
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\service\KnowledgeService.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\vo\assessment\AssessmentReportVO.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\util\PasswordHashGenerator.java
+D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\mapper\AchievementMapper.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\vo\user\UserLoginVO.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\entity\LearningRecord.java
+D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\entity\Achievement.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\config\OpenApiConfig.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\config\CorsConfig.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\dto\user\UserRegisterRequest.java
@@ -30,6 +32,8 @@ D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\mapper\Learn
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\entity\RiskOption.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\entity\User.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\dto\assessment\AssessmentSubmitRequest.java
+D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\service\CarouselService.java
+D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\entity\Carousel.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\common\Result.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\service\AssessmentService.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\mapper\RiskQuestionMapper.java
@@ -46,6 +50,7 @@ D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\vo\assessmen
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\vo\assessment\RiskQuestionVO.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\vo\knowledge\LearningProgressVO.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\mapper\RiskOptionMapper.java
+D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\config\WebMvcConfig.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\entity\RiskQuestion.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\controller\AssessmentController.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\controller\UserController.java
@@ -56,12 +61,14 @@ D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\common\enums
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\service\impl\AdminStatisticsServiceImpl.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\service\TrainingRecordService.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\config\DataInitializer.java
+D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\controller\CarouselController.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\vo\user\UserInfoVO.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\common\GlobalExceptionHandler.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\vo\admin\UserListVO.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\service\impl\AssessmentServiceImpl.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\dto\assessment\AssessmentAnswerItem.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\dto\fraudcase\FraudCaseQueryRequest.java
+D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\mapper\CarouselMapper.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\config\PasswordEncoderConfig.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\service\impl\KnowledgeServiceImpl.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\vo\train\TrainingStatsVO.java
@@ -76,6 +83,7 @@ D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\mapper\Fraud
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\common\enums\FraudCaseType.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\service\UserService.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\mapper\UserMapper.java
+D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\service\impl\CarouselServiceImpl.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\entity\RiskAssessment.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\vo\knowledge\KnowledgeArticleVO.java
 D:\APPdalley\anti-fraud-web\backend\src\main\java\com\xxx\antifraud\common\enums\QuestionType.java

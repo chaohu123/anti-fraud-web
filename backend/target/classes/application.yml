@@ -5,6 +5,10 @@ spring:
   profiles:
     active: mysql
 
+# 本地上传文件存储目录（轮播图等），访问路径为 /uploads/**。使用绝对路径避免 Tomcat 工作目录导致写入失败
+upload:
+  path: ${user.home}/antifraud-uploads
+
 ---
 spring:
   config:

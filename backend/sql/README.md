@@ -2,156 +2,74 @@
 
 ## 文件说明
 
-### 1. `schema_spring_mysql.sql`
-- **用途**：创建数据库表结构
-- **内容**：包含所有表的 CREATE TABLE 语句
+### 1. `schema.sql`
+- **用途**：创建数据库及完整表结构
+- **内容**：CREATE DATABASE、所有表的 CREATE TABLE 语句
 - **执行顺序**：第一步
 
-### 2. `insert_data.sql`
-- **用途**：插入测试数据
-- **内容**：包含完整的测试数据，包括用户、案例、题目、选项、知识文章等
+### 2. `insert.sql`
+- **用途**：插入示例/测试数据
+- **内容**：用户、诈骗案例、风险测评题目与选项、防骗知识、成就等示例数据
 - **执行顺序**：第二步（在创建表结构之后）
 
 ## 使用步骤
 
-### 方式一：使用 MySQL 命令行
+### 方式一：MySQL 命令行
 
 ```bash
 # 1. 登录 MySQL
 mysql -u root -p
 
-# 2. 创建数据库（如果还没有）
-CREATE DATABASE anti_fraud CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE anti_fraud;
+# 2. 执行建表脚本（会创建库 anti_fraud 并建表）
+SOURCE /path/to/backend/sql/schema.sql;
 
-# 3. 执行建表脚本
-SOURCE /path/to/backend/sql/schema_spring_mysql.sql;
-
-# 4. 执行数据插入脚本
-SOURCE /path/to/backend/sql/insert_data.sql;
+# 3. 执行数据插入脚本
+SOURCE /path/to/backend/sql/insert.sql;
 ```
 
-### 方式二：使用 MySQL Workbench 或其他图形化工具
-
-1. 打开 MySQL Workbench
-2. 连接到数据库服务器
-3. 创建数据库 `anti_fraud`（如果还没有）
-4. 打开 `schema_spring_mysql.sql`，执行建表脚本
-5. 打开 `insert_data.sql`，执行数据插入脚本
-
-### 方式三：使用命令行直接执行
+### 方式二：命令行直接执行
 
 ```bash
-# 执行建表脚本
-mysql -u root -p anti_fraud < backend/sql/schema_spring_mysql.sql
-
-# 执行数据插入脚本
-mysql -u root -p anti_fraud < backend/sql/insert_data.sql
+mysql -u root -p < backend/sql/schema.sql
+mysql -u root -p < backend/sql/insert.sql
 ```
+
+### 方式三：图形化工具（如 MySQL Workbench）
+
+1. 执行 `schema.mysql` 创建数据库和表
+2. 执行 `insert.sql` 插入示例数据
 
 ## 测试账号说明
 
-### 默认测试用户
+所有测试用户密码均为：**123456**（BCrypt 存储）
 
-所有测试用户的密码均为：**123456**
+| 用户名    | 昵称       | 说明       |
+|----------|------------|------------|
+| admin    | 系统管理员 | 管理员账号 |
+| testuser1| 防骗新手   | 测试用户   |
+| testuser2| 安全达人   | 测试用户   |
+| testuser3| 防骗专家   | 测试用户   |
+| zhangsan | 张三       | 普通用户   |
+| lisi     | 李四       | 普通用户   |
 
-| 用户名 | 昵称 | 风险等级 | 说明 |
-|--------|------|----------|------|
-| admin | 系统管理员 | LOW | 管理员账号 |
-| testuser1 | 防骗新手 | LOW | 测试用户1 |
-| testuser2 | 安全达人 | MEDIUM | 测试用户2 |
-| testuser3 | 防骗专家 | HIGH | 测试用户3 |
-| zhangsan | 张三 | NULL | 普通用户 |
-| lisi | 李四 | LOW | 普通用户 |
+若登录时密码校验失败，可运行后端 `PasswordHashGenerator.java` 生成新的 BCrypt 哈希，并更新 `insert.sql` 中的 `@pwd_hash` 或直接执行 `UPDATE af_user SET password_hash = '...' WHERE username = 'admin';`。
 
-### 密码说明
+## 表结构概览
 
-- 所有密码已使用 BCrypt 加密存储
-- 测试密码：`123456`
-- BCrypt Hash：`$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy`
-
-## 数据内容说明
-
-### 1. 用户数据 (af_user)
-- 6 个测试用户账号
-- 包含不同风险等级的用户
-
-### 2. 诈骗案例数据 (af_fraud_case)
-- 9 个案例，包括：
-  - 短信诈骗案例（3个）
-  - 邮件诈骗案例（2个）
-  - 网站诈骗案例（2个）
-  - 正常案例（2个，用于训练）
-
-### 3. 风险测评题目 (af_risk_question)
-- 15 道题目，分为三个维度：
-  - 信息保护意识 (INFO)：5题
-  - 金融安全意识 (FINANCE)：5题
-  - 心理风险倾向 (PSYCH)：5题
-
-### 4. 风险测评选项 (af_risk_option)
-- 每道题目包含 3 个选项
-- 选项值越高表示风险越高
-
-### 5. 防骗知识文章 (af_anti_fraud_article)
-- 8 篇文章，涵盖：
-  - 短信诈骗防范（2篇）
-  - 邮件诈骗防范（1篇）
-  - 网站诈骗防范（2篇）
-  - 金融诈骗防范（1篇）
-  - 社交平台诈骗防范（1篇）
-  - 电话诈骗防范（1篇）
+- **af_user**：用户
+- **af_fraud_case**：诈骗案例（训练题目）
+- **af_training_record**：识别训练记录
+- **af_risk_question** / **af_risk_option**：风险测评题目与选项
+- **af_assessment_result**：测评结果（综合分数与维度分）
+- **af_risk_assessment**：防骗风险测评结果（LOW/MEDIUM/HIGH）
+- **af_knowledge**：防骗知识文章
+- **af_learning_record**：学习记录
+- **af_achievement** / **af_user_achievement**：成就及用户成就
+- **af_system_config**：系统配置
 
 ## 注意事项
 
-1. **生产环境**：
-   - 不要使用默认测试密码
-   - 修改所有用户的密码
-   - 删除测试数据
-
-2. **数据完整性**：
-   - 执行插入脚本前确保表结构已创建
-   - 如果表已存在数据，可能需要先清空或使用 `TRUNCATE TABLE`
-
-3. **外键约束**：
-   - 训练记录、测评结果等数据需要根据实际用户ID和案例ID调整
-   - 相关数据已注释，可根据需要取消注释
-
-4. **字符集**：
-   - 确保数据库使用 `utf8mb4` 字符集
-   - 支持中文和特殊字符
-
-## 常见问题
-
-### Q: 如何重置密码？
-A: 可以使用以下 SQL 更新密码（密码：123456）：
-```sql
-UPDATE af_user SET password = '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy' WHERE username = 'your_username';
-```
-
-### Q: 如何生成新的 BCrypt 密码？
-A: 可以使用在线工具或后端代码生成：
-```java
-BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
-String hashedPassword = encoder.encode("your_password");
-```
-
-### Q: 插入数据时出现外键错误？
-A: 确保先插入主表数据（如用户、案例），再插入关联表数据（如训练记录）
-
-### Q: 如何清空所有数据？
-A: 可以使用以下 SQL（谨慎操作）：
-```sql
-SET FOREIGN_KEY_CHECKS = 0;
-TRUNCATE TABLE af_user;
-TRUNCATE TABLE af_fraud_case;
-TRUNCATE TABLE af_risk_question;
-TRUNCATE TABLE af_risk_option;
-TRUNCATE TABLE af_anti_fraud_article;
--- 其他表...
-SET FOREIGN_KEY_CHECKS = 1;
-```
-
-## 联系支持
-
-如有问题，请查看项目文档或联系开发团队。
+1. **生产环境**：勿使用默认测试密码，请修改并删除或脱敏测试数据。
+2. **字符集**：库与表均使用 `utf8mb4`，以支持中文及 emoji。
+3. **执行顺序**：必须先执行 `schema.sql` 再执行 `insert.sql`。
+4. 本目录脚本与后端配置文件 `backend/src/main/resources/application.yml` 中的 `spring.datasource.*` 对应，请确保数据库名、用户名和密码保持一致。

@@ -8,6 +8,7 @@ import {
   QuestionFilled,
   EditPen,
   Collection,
+  PictureFilled,
   Trophy,
   User,
   Setting,
@@ -31,19 +32,24 @@ const breadcrumbItems = computed(() => {
   const path = route.path;
   const items: { title: string; path?: string }[] = [{ title: '管理后台', path: '/admin/dashboard' }];
   
-  const menuMap: Record<string, string> = {
-    '/admin/dashboard': '仪表盘',
-    '/admin/cases': '诈骗案例管理',
-    '/admin/training': '识别训练题目管理',
-    '/admin/assessment': '风险测评问卷管理',
-    '/admin/knowledge': '防骗知识库管理',
-    '/admin/achievement': '成就规则管理',
-    '/admin/users': '用户数据管理',
-    '/admin/settings': '系统设置',
+  const menuMap: Record<string, { title: string; parent?: string }> = {
+    '/admin/dashboard': { title: '仪表盘' },
+    '/admin/cases': { title: '诈骗案例管理', parent: '识别训练页' },
+    '/admin/training': { title: '识别训练题目管理', parent: '识别训练页' },
+    '/admin/assessment': { title: '风险测评问卷管理' },
+    '/admin/knowledge': { title: '防骗知识库管理', parent: '知识页' },
+    '/admin/carousel': { title: '知识页轮播图管理', parent: '知识页' },
+    '/admin/achievement': { title: '成就规则管理' },
+    '/admin/users': { title: '用户数据管理' },
+    '/admin/settings': { title: '系统设置' },
   };
   
   if (path !== '/admin/dashboard' && menuMap[path]) {
-    items.push({ title: menuMap[path] });
+    const menu = menuMap[path];
+    if (menu.parent) {
+      items.push({ title: menu.parent });
+    }
+    items.push({ title: menu.title });
   }
   
   return items;
@@ -53,21 +59,34 @@ const toggleSidebar = () => {
   isCollapse.value = !isCollapse.value;
 };
 
-const menuItems = [
+type MenuItem = {
+  path?: string;
+  title: string;
+  icon?: any;
+  children?: MenuItem[];
+};
+
+const menuItems: MenuItem[] = [
   {
     path: '/admin/dashboard',
     title: '仪表盘',
     icon: DataBoard,
   },
   {
-    path: '/admin/cases',
-    title: '诈骗案例管理',
-    icon: Document,
-  },
-  {
-    path: '/admin/training',
-    title: '识别训练题目管理',
+    title: '识别训练页',
     icon: QuestionFilled,
+    children: [
+      {
+        path: '/admin/cases',
+        title: '诈骗案例管理',
+        icon: Document,
+      },
+      {
+        path: '/admin/training',
+        title: '识别训练题目管理',
+        icon: QuestionFilled,
+      },
+    ],
   },
   {
     path: '/admin/assessment',
@@ -75,9 +94,20 @@ const menuItems = [
     icon: EditPen,
   },
   {
-    path: '/admin/knowledge',
-    title: '防骗知识库管理',
+    title: '知识页',
     icon: Collection,
+    children: [
+      {
+        path: '/admin/knowledge',
+        title: '防骗知识库管理',
+        icon: Collection,
+      },
+      {
+        path: '/admin/carousel',
+        title: '知识页轮播图管理',
+        icon: PictureFilled,
+      },
+    ],
   },
   {
     path: '/admin/achievement',
@@ -97,7 +127,9 @@ const menuItems = [
 ];
 
 const handleMenuClick = (path: string) => {
-  router.push(path);
+  if (path) {
+    router.push(path);
+  }
 };
 
 const goBack = () => {
@@ -171,15 +203,29 @@ const logout = () => {
           :collapse="isCollapse"
           :collapse-transition="true"
         >
-          <el-menu-item
-            v-for="item in menuItems"
-            :key="item.path"
-            :index="item.path"
-            @click="handleMenuClick(item.path)"
-          >
-            <el-icon><component :is="item.icon" /></el-icon>
-            <template #title>{{ item.title }}</template>
-          </el-menu-item>
+          <template v-for="item in menuItems" :key="item.path || item.title">
+            <!-- 有子菜单的分组 -->
+            <el-sub-menu v-if="item.children" :index="item.title">
+              <template #title>
+                <el-icon><component :is="item.icon" /></el-icon>
+                <span>{{ item.title }}</span>
+              </template>
+              <el-menu-item
+                v-for="child in item.children"
+                :key="child.path"
+                :index="child.path"
+                @click="handleMenuClick(child.path!)"
+              >
+                <el-icon><component :is="child.icon" /></el-icon>
+                <template #title>{{ child.title }}</template>
+              </el-menu-item>
+            </el-sub-menu>
+            <!-- 普通菜单项 -->
+            <el-menu-item v-else :index="item.path" @click="handleMenuClick(item.path!)">
+              <el-icon><component :is="item.icon" /></el-icon>
+              <template #title>{{ item.title }}</template>
+            </el-menu-item>
+          </template>
         </el-menu>
       </el-aside>
 
@@ -329,6 +375,27 @@ const logout = () => {
         .el-icon {
           color: #fff;
         }
+      }
+    }
+
+    :deep(.el-sub-menu) {
+      .el-sub-menu__title {
+        margin: 4px 8px;
+        border-radius: 8px;
+        height: 48px;
+        line-height: 48px;
+        transition: all 0.3s;
+
+        &:hover {
+          background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+          color: #667eea;
+        }
+      }
+
+      .el-menu-item {
+        margin-left: 8px;
+        margin-right: 8px;
+        padding-left: 48px !important;
       }
     }
   }

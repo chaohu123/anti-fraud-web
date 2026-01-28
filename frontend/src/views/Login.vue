@@ -29,8 +29,18 @@
           </div>
           <div class="brand-illustration">
             <div class="illustration-placeholder">
-              <el-icon class="illustration-icon"><Lock /></el-icon>
-              <p class="illustration-text">安全防护插画</p>
+              <div class="qr-block">
+                <img class="qr-img" :src="appQr" alt="反诈应用二维码" />
+                <div class="qr-text">
+                  <div class="qr-title">扫码获取官方反诈应用</div>
+                  <div class="qr-subtitle">建议使用手机相机/微信扫一扫，优先通过官方渠道下载安装</div>
+                  <ul class="qr-tips">
+                    <li>核对来源：仅从应用商店/官方渠道下载，警惕陌生链接与安装包</li>
+                    <li>不泄露：验证码、密码、银行卡信息一律不提供</li>
+                    <li>遇到转账催促先停一步：通过官方客服/家人/警方核实</li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -181,6 +191,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { User, Lock, MagicStick, DataAnalysis, Document, UserFilled } from '@element-plus/icons-vue';
 import { useUserStore } from '../stores/user';
+import appQr from '../static/app.png';
 
 const router = useRouter();
 const route = useRoute();
@@ -525,16 +536,55 @@ if (rememberedUsername) {
   }
 }
 
-.illustration-icon {
-  font-size: 64px;
-  margin-bottom: 12px;
+.qr-block {
+  display: grid;
+  grid-template-columns: minmax(160px, 200px) 1fr;
+  gap: 28px;
+  align-items: center;
+  text-align: left;
+}
+
+.qr-text {
+  padding-left: 6px;
+}
+
+.qr-img {
+  width: 100%;
+  max-width: 200px;
+  aspect-ratio: 1 / 1;
+  height: auto;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 10px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+  object-fit: contain;
+  image-rendering: auto;
+}
+
+.qr-title {
+  font-size: 16px;
+  font-weight: 800;
+  margin-bottom: 6px;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.qr-subtitle {
+  font-size: 12px;
+  line-height: 1.6;
+  opacity: 0.88;
+  margin-bottom: 10px;
+}
+
+.qr-tips {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.7;
   opacity: 0.9;
 }
 
-.illustration-text {
-  font-size: 14px;
-  margin: 0;
-  opacity: 0.8;
+.qr-tips li {
+  margin-bottom: 6px;
 }
 
 // 右侧表单区
@@ -679,6 +729,16 @@ if (rememberedUsername) {
 
   .form-card {
     max-width: 100%;
+  }
+
+  .qr-block {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+
+  .qr-img {
+    margin: 0 auto;
+    max-width: 220px;
   }
 }
 

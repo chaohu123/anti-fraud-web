@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { computed, ref, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import http from '../../api/http';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -12,6 +12,15 @@ const loading = ref(false);
 const dialogVisible = ref(false);
 const currentUser = ref<any>(null);
 const userReport = ref<any>(null);
+
+const trainingStats = computed(() => {
+  const t = Number(userReport.value?.trainingCount ?? 0);
+  const c = Number(userReport.value?.correctCount ?? 0);
+  const total = Number.isFinite(t) && t > 0 ? t : 0;
+  const correct = Number.isFinite(c) && c >= 0 ? c : 0;
+  const rate = total > 0 ? Number(((correct / total) * 100).toFixed(2)) : 0;
+  return { total, correct, rate };
+});
 
 // 搜索和筛选
 const searchKeyword = ref('');
@@ -252,17 +261,13 @@ watch(
         <h3>训练统计</h3>
         <el-descriptions :column="2" border>
           <el-descriptions-item label="训练次数">
-            {{ userReport.trainingCount || 0 }}
+            {{ trainingStats.total }}
           </el-descriptions-item>
           <el-descriptions-item label="正确次数">
-            {{ userReport.correctCount || 0 }}
+            {{ trainingStats.correct }}
           </el-descriptions-item>
           <el-descriptions-item label="正确率">
-            {{
-              userReport.trainingCount > 0
-                ? ((userReport.correctCount / userReport.trainingCount) * 100).toFixed(2)
-                : 0
-            }}%
+            {{ trainingStats.rate }}%
           </el-descriptions-item>
           <el-descriptions-item label="平均用时">
             {{ userReport.avgTimeSpent || 0 }}ms

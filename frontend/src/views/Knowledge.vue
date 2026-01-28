@@ -1,7 +1,26 @@
 <template>
   <div class="knowledge-page">
-    <!-- 顶部 Banner -->
+    <!-- 顶部 Banner：左侧轮播图 + 右侧标题与统计 -->
     <div class="knowledge-banner">
+      <div class="banner-carousel">
+        <el-carousel v-if="carouselList?.length" height="100%" indicator-position="outside" arrow="always">
+          <el-carousel-item v-for="item in carouselList" :key="item.id">
+            <a
+              v-if="item.linkUrl"
+              :href="item.linkUrl"
+              target="_blank"
+              rel="noopener"
+              class="carousel-link"
+            >
+              <img :src="resolveCarouselImage(item.imageUrl)" :alt="item.title || '轮播图'" class="carousel-img" />
+            </a>
+            <img v-else :src="resolveCarouselImage(item.imageUrl)" :alt="item.title || '轮播图'" class="carousel-img" />
+          </el-carousel-item>
+        </el-carousel>
+        <div v-else class="carousel-placeholder">
+          <span>轮播图（管理员可在后台添加）</span>
+        </div>
+      </div>
       <div class="banner-content">
         <h1 class="banner-title">防骗知识库</h1>
         <p class="banner-subtitle">用于教学与风险防范</p>
@@ -39,18 +58,18 @@
               <el-icon class="search-icon"><Search /></el-icon>
             </template>
             <template #suffix>
-              <el-button 
-                type="primary" 
-                :icon="Search" 
-                circle 
+              <el-button
+                type="primary"
+                :icon="Search"
+                circle
                 size="small"
                 @click="handleSearch"
                 class="search-button"
               />
             </template>
           </el-input>
-          <el-dropdown 
-            trigger="click" 
+          <el-dropdown
+            trigger="click"
             @command="handleCategorySelect"
             class="filter-dropdown"
           >
@@ -63,7 +82,7 @@
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item 
+                <el-dropdown-item
                   :command="''"
                   :class="{ 'is-selected': selectedCategory === '' }"
                 >
@@ -72,8 +91,8 @@
                     {{ totalCount }} 条
                   </el-tag>
                 </el-dropdown-item>
-                <el-dropdown-item 
-                  v-for="cat in categories" 
+                <el-dropdown-item
+                  v-for="cat in categories"
                   :key="cat"
                   :command="cat"
                   :class="{ 'is-selected': selectedCategory === cat }"
@@ -93,7 +112,7 @@
           </span>
         </div>
       </div>
-      
+
       <el-row v-if="loading" :gutter="20">
         <el-col v-for="i in 6" :key="i" :span="8">
           <el-skeleton :rows="4" animated />
@@ -109,9 +128,9 @@
           <el-card shadow="hover" class="knowledge-card">
             <div class="card-header">
               <div class="header-left">
-                <el-tag 
-                  v-if="knowledgeStore.isRead(item.id)" 
-                  type="success" 
+                <el-tag
+                  v-if="knowledgeStore.isRead(item.id)"
+                  type="success"
                   size="small"
                   class="learned-tag">
                   已学习
@@ -123,11 +142,11 @@
                 </el-tag>
               </div>
             </div>
-            
+
             <div class="card-category">{{ item.category }}</div>
             <h3 class="card-title">{{ item.title }}</h3>
             <p class="card-summary">{{ item.summary }}</p>
-            
+
             <div class="card-prevention">
               <div class="prevention-label">防范要点：</div>
               <ul class="prevention-list">
@@ -138,14 +157,14 @@
             </div>
 
             <div class="card-footer">
-              <el-button 
-                type="primary" 
+              <el-button
+                type="primary"
                 size="small"
                 @click="goToDetail(item.id)">
                 查看详情
               </el-button>
-              <el-button 
-                link 
+              <el-button
+                link
                 :type="knowledgeStore.isRead(item.id) ? 'success' : 'info'"
                 size="small"
                 @click="toggleLearn(item.id)">
@@ -195,6 +214,15 @@ type KnowledgeItem = {
   relatedTraining?: string;
 };
 
+type CarouselItem = {
+  id: number;
+  imageUrl: string;
+  title?: string;
+  linkUrl?: string;
+  sortOrder: number;
+  enableFlag: number;
+};
+
 const router = useRouter();
 const route = useRoute();
 const searchKeyword = ref('');
@@ -202,6 +230,7 @@ const selectedCategory = ref('');
 const items = ref<KnowledgeItem[]>([]);
 const loading = ref(false);
 const error = ref('');
+const carouselList = ref<CarouselItem[]>([]);
 const knowledgeStore = useKnowledgeStore();
 const userStore = useUserStore();
 const achievementStore = useAchievementStore();
@@ -247,8 +276,8 @@ const learningProgress = computed(() => {
 const filteredItems = computed(() => {
   return items.value.filter((item) => {
     const matchCategory = !selectedCategory.value || item.category === selectedCategory.value;
-    const matchKeyword = !searchKeyword.value || 
-      item.title.includes(searchKeyword.value) || 
+    const matchKeyword = !searchKeyword.value ||
+      item.title.includes(searchKeyword.value) ||
       item.summary.includes(searchKeyword.value) ||
       item.category.includes(searchKeyword.value);
     return matchCategory && matchKeyword;
@@ -324,6 +353,13 @@ function goToDetail(id: number) {
   router.push(`/knowledge/${id}`);
 }
 
+// 轮播图图片地址：完整 URL 直接使用，相对路径（如 /uploads/...）直接使用
+function resolveCarouselImage(imageUrl: string): string {
+  if (!imageUrl) return '';
+  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) return imageUrl;
+  return imageUrl.startsWith('/') ? imageUrl : '/' + imageUrl;
+}
+
 async function toggleLearn(id: number) {
   const willMark = !knowledgeStore.isRead(id);
   const wasAlreadyRead = knowledgeStore.isRead(id);
@@ -364,8 +400,12 @@ onMounted(async () => {
   loading.value = true;
   error.value = '';
   try {
-    const resp = await http.get('/knowledge');
-    items.value = resp.data || [];
+    const [knowledgeResp, carouselResp] = await Promise.all([
+      http.get('/knowledge'),
+      http.get('/carousel').catch(() => ({ data: [] })),
+    ]);
+    items.value = knowledgeResp.data || [];
+    carouselList.value = Array.isArray(carouselResp.data) ? carouselResp.data : [];
     // 登录状态下，同步后端学习进度（包括已完成的知识ID）
     if (userStore.userId) {
       try {
@@ -411,53 +451,181 @@ onMounted(async () => {
   padding-bottom: 40px;
 }
 
-// 顶部 Banner
+// 顶部 Banner：左侧轮播（独立）+ 右侧文案
 .knowledge-banner {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 60px 20px;
-  margin-bottom: 30px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: stretch;
+  gap: 24px;
+  margin: 0 auto 30px;
+  max-width: 1200px;
+  padding: 0 20px;
+  position: relative;
+
+  .banner-carousel {
+    flex: 0 0 55%;
+    min-height: 320px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+
+    :deep(.el-carousel) {
+      width: 100%;
+      height: 100%;
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    :deep(.el-carousel__container) {
+      height: 100%;
+      border-radius: 16px;
+    }
+    :deep(.el-carousel__item) {
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    :deep(.el-carousel__arrow) {
+      background-color: rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      transition: all 0.3s;
+
+      &:hover {
+        background-color: rgba(0, 0, 0, 0.5);
+      }
+    }
+    :deep(.el-carousel__indicators) {
+      .el-carousel__indicator {
+        .el-carousel__button {
+          background-color: rgba(0, 0, 0, 0.3);
+          transition: all 0.3s;
+
+          &:hover {
+            background-color: rgba(0, 0, 0, 0.5);
+          }
+        }
+
+        &.is-active .el-carousel__button {
+          background-color: #667eea;
+        }
+      }
+    }
+  }
+
+  .carousel-link {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .carousel-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    transition: transform 0.3s ease;
+
+    &:hover {
+      transform: scale(1.02);
+    }
+  }
+
+  .carousel-placeholder {
+    width: 100%;
+    height: 100%;
+    min-height: 280px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #909399;
+    font-size: 15px;
+    border-radius: 16px;
+    background: #f5f7fa;
+    border: 2px dashed #dcdfe6;
+  }
 
   .banner-content {
-    max-width: 1200px;
-    margin: 0 auto;
-    text-align: center;
-  }
-
-  .banner-title {
-    font-size: 42px;
-    font-weight: 700;
-    margin: 0 0 12px 0;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  }
-
-  .banner-subtitle {
-    font-size: 18px;
-    margin: 0 0 30px 0;
-    opacity: 0.95;
-  }
-
-  .learning-stats {
+    flex: 1;
     display: flex;
+    flex-direction: column;
+    align-items: center;
     justify-content: center;
-    gap: 60px;
-    margin-top: 30px;
+    padding: 40px 32px;
+    text-align: center;
+    position: relative;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 16px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    color: white;
 
-    .stat-item {
-      text-align: center;
+    .banner-title {
+      font-size: 42px;
+      font-weight: 700;
+      margin: 0 0 12px 0;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      letter-spacing: -0.5px;
+      line-height: 1.2;
+    }
 
-      .stat-value {
-        color: white;
-        font-size: 32px;
-        font-weight: 700;
-        margin-bottom: 8px;
-        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-      }
+    .banner-subtitle {
+      font-size: 18px;
+      margin: 0 0 40px 0;
+      opacity: 0.95;
+      font-weight: 400;
+      letter-spacing: 0.5px;
+    }
 
-      .stat-label {
-        color: rgba(255, 255, 255, 0.9);
-        font-size: 14px;
+    .learning-stats {
+      display: flex;
+      justify-content: space-between;
+      align-items: stretch;
+      gap: 16px;
+      margin-top: 20px;
+      width: 100%;
+      max-width: 600px;
+
+      .stat-item {
+        flex: 1;
+        text-align: center;
+        padding: 16px 12px;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        transition: all 0.3s ease;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.15);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .stat-value {
+          color: white;
+          font-size: 28px;
+          font-weight: 700;
+          margin-bottom: 8px;
+          text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+          line-height: 1.2;
+        }
+
+        .stat-label {
+          color: rgba(255, 255, 255, 0.9);
+          font-size: 13px;
+          font-weight: 500;
+          white-space: nowrap;
+        }
       }
     }
   }
@@ -587,7 +755,7 @@ onMounted(async () => {
       justify-content: space-between;
       align-items: flex-start;
       margin-bottom: 12px;
-      
+
       .header-left {
         .learned-tag {
           margin-right: 4px;
@@ -717,15 +885,49 @@ onMounted(async () => {
 // 响应式设计
 @media (max-width: 768px) {
   .knowledge-banner {
-    padding: 40px 20px;
+    flex-direction: column;
+    gap: 16px;
+
+    .banner-carousel {
+      flex: none;
+      max-width: 100%;
+      min-height: 200px;
+      padding: 16px;
+    }
+
+    .carousel-placeholder {
+      min-height: 200px;
+    }
+
+    .banner-content {
+      padding: 32px 20px;
+    }
 
     .banner-title {
       font-size: 32px;
     }
 
+    .banner-subtitle {
+      font-size: 16px;
+      margin-bottom: 30px;
+    }
+
     .learning-stats {
-      flex-direction: column;
-      gap: 20px;
+      gap: 8px;
+      max-width: 100%;
+
+      .stat-item {
+        padding: 12px 8px;
+        flex: 1;
+
+        .stat-value {
+          font-size: 24px;
+        }
+
+        .stat-label {
+          font-size: 11px;
+        }
+      }
     }
   }
 

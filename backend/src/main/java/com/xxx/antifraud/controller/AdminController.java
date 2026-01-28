@@ -8,10 +8,12 @@ import com.xxx.antifraud.dto.fraudcase.AdminCaseCreateRequest;
 import com.xxx.antifraud.dto.fraudcase.FraudCaseQueryRequest;
 import com.xxx.antifraud.entity.Achievement;
 import com.xxx.antifraud.entity.AntiFraudArticle;
+import com.xxx.antifraud.entity.Carousel;
 import com.xxx.antifraud.entity.FraudCase;
 import com.xxx.antifraud.entity.User;
 import com.xxx.antifraud.mapper.AchievementMapper;
 import com.xxx.antifraud.mapper.UserMapper;
+import com.xxx.antifraud.service.CarouselService;
 import com.xxx.antifraud.service.FraudCaseService;
 import com.xxx.antifraud.service.KnowledgeService;
 import com.xxx.antifraud.service.TrainingRecordService;
@@ -25,6 +27,7 @@ import javax.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -52,7 +55,38 @@ public class AdminController {
     private final AchievementMapper achievementMapper;
     private final com.xxx.antifraud.mapper.RiskQuestionMapper riskQuestionMapper;
     private final com.xxx.antifraud.mapper.RiskOptionMapper riskOptionMapper;
+    private final CarouselService carouselService;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private static String asTrimmedString(Map<String, Object> data, String key) {
+        if (data == null) return null;
+        Object v = data.get(key);
+        if (v == null) return null;
+        String s = v.toString();
+        if (s == null) return null;
+        s = s.trim();
+        return s.isEmpty() ? null : s;
+    }
+
+    private static Integer asInteger(Map<String, Object> data, String key) {
+        String s = asTrimmedString(data, key);
+        if (s == null) return null;
+        try {
+            return Integer.valueOf(s);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static Double asDouble(Map<String, Object> data, String key) {
+        String s = asTrimmedString(data, key);
+        if (s == null) return null;
+        try {
+            return Double.valueOf(s);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
 
     // ==================== 案例管理 ====================
     
@@ -84,31 +118,33 @@ public class AdminController {
         FraudCase entity = new FraudCase();
         
         // 支持从Map中读取字段，兼容AdminCaseCreateRequest格式
-        if (data.containsKey("title")) {
-            entity.setTitle(data.get("title").toString());
-        } else {
-            entity.setTitle("后台录入案例");
-        }
+        String title = asTrimmedString(data, "title");
+        entity.setTitle(title != null ? title : "后台录入案例");
         
-        String type = data.containsKey("type") ? data.get("type").toString() : 
-                (data.containsKey("type") ? data.get("type").toString() : "sms");
+        String type = asTrimmedString(data, "type");
+        if (type == null) type = "sms";
         entity.setType(type.toLowerCase(Locale.ROOT));
         
-        String level = data.containsKey("difficulty") ? data.get("difficulty").toString() : "easy";
+        String level = asTrimmedString(data, "difficulty");
+        if (level == null) level = "easy";
         entity.setLevel(level.toLowerCase(Locale.ROOT));
         
-        entity.setContent(data.get("content").toString());
-        
-        if (data.containsKey("hint")) {
-            entity.setHint(data.get("hint").toString());
+        String content = asTrimmedString(data, "content");
+        if (content == null) {
+            return Result.failure(400, "content 为必填字段");
         }
+        entity.setContent(content);
         
-        String answer = data.containsKey("answer") ? data.get("answer").toString() : "fraud";
+        String hint = asTrimmedString(data, "hint");
+        if (hint != null) entity.setHint(hint);
+        
+        String answer = asTrimmedString(data, "answer");
+        if (answer == null) answer = "fraud";
         entity.setCorrectAnswer(answer.toLowerCase(Locale.ROOT));
         
         // 设置可疑特征
-        if (data.containsKey("hint")) {
-            entity.setSuspiciousTags(objectMapper.writeValueAsString(List.of(data.get("hint").toString())));
+        if (hint != null) {
+            entity.setSuspiciousTags(objectMapper.writeValueAsString(List.of(hint)));
         }
         
         entity.setEnableFlag(1);
@@ -123,27 +159,27 @@ public class AdminController {
         if (entity == null) {
             return Result.failure(404, "案例不存在");
         }
-        if (data.containsKey("title")) {
-            entity.setTitle(data.get("title").toString());
-        }
-        if (data.containsKey("type")) {
-            entity.setType(data.get("type").toString().toLowerCase(Locale.ROOT));
-        }
-        if (data.containsKey("content")) {
-            entity.setContent(data.get("content").toString());
-        }
-        if (data.containsKey("hint")) {
-            entity.setHint(data.get("hint").toString());
-        }
-        if (data.containsKey("answer")) {
-            entity.setCorrectAnswer(data.get("answer").toString().toLowerCase(Locale.ROOT));
-        }
-        if (data.containsKey("difficulty")) {
-            entity.setLevel(data.get("difficulty").toString().toLowerCase(Locale.ROOT));
-        }
-        if (data.containsKey("mediaUrl")) {
-            entity.setMediaUrl(data.get("mediaUrl").toString());
-        }
+        String title = asTrimmedString(data, "title");
+        if (title != null) entity.setTitle(title);
+
+        String type = asTrimmedString(data, "type");
+        if (type != null) entity.setType(type.toLowerCase(Locale.ROOT));
+
+        String content = asTrimmedString(data, "content");
+        if (content != null) entity.setContent(content);
+
+        String hint = asTrimmedString(data, "hint");
+        if (hint != null) entity.setHint(hint);
+
+        String answer = asTrimmedString(data, "answer");
+        if (answer != null) entity.setCorrectAnswer(answer.toLowerCase(Locale.ROOT));
+
+        String difficulty = asTrimmedString(data, "difficulty");
+        if (difficulty != null) entity.setLevel(difficulty.toLowerCase(Locale.ROOT));
+
+        String mediaUrl = asTrimmedString(data, "mediaUrl");
+        if (mediaUrl != null) entity.setMediaUrl(mediaUrl);
+
         fraudCaseService.updateById(entity);
         return Result.success();
     }
@@ -432,17 +468,30 @@ public class AdminController {
     @PostMapping("/achievements")
     public Result<Void> createAchievement(@RequestBody Map<String, Object> data) {
         Achievement achievement = new Achievement();
-        achievement.setName((String) data.get("name"));
-        achievement.setDescription((String) data.get("description"));
-        achievement.setConditionType((String) data.get("condition"));
-        if (data.get("conditionValue") != null) {
-            achievement.setConditionValue(Integer.valueOf(data.get("conditionValue").toString()));
+        String name = asTrimmedString(data, "name");
+        if (name == null) return Result.failure(400, "name 为必填字段");
+        achievement.setName(name);
+
+        String description = asTrimmedString(data, "description");
+        achievement.setDescription(description != null ? description : "");
+
+        String condition = asTrimmedString(data, "condition");
+        achievement.setConditionType(condition);
+
+        Integer conditionValue = asInteger(data, "conditionValue");
+        if (data != null && data.containsKey("conditionValue") && conditionValue == null) {
+            return Result.failure(400, "conditionValue 必须为数字");
         }
-        if (data.get("rewardExp") != null) {
-            achievement.setRewardExp(Integer.valueOf(data.get("rewardExp").toString()));
+        achievement.setConditionValue(conditionValue);
+
+        Integer rewardExp = asInteger(data, "rewardExp");
+        if (data != null && data.containsKey("rewardExp") && rewardExp == null) {
+            return Result.failure(400, "rewardExp 必须为数字");
         }
-        achievement.setIcon((String) data.get("icon"));
-        achievement.setStatus((String) data.getOrDefault("status", "ACTIVE"));
+        achievement.setRewardExp(rewardExp);
+
+        achievement.setIcon(asTrimmedString(data, "icon"));
+        achievement.setStatus(asTrimmedString(data, "status") != null ? asTrimmedString(data, "status") : "ACTIVE");
         achievementMapper.insert(achievement);
         return Result.success();
     }
@@ -454,27 +503,33 @@ public class AdminController {
         if (achievement == null) {
             return Result.failure(404, "成就不存在");
         }
-        if (data.containsKey("name")) {
-            achievement.setName((String) data.get("name"));
+        String name = asTrimmedString(data, "name");
+        if (name != null) achievement.setName(name);
+
+        String description = asTrimmedString(data, "description");
+        if (description != null) achievement.setDescription(description);
+
+        String condition = asTrimmedString(data, "condition");
+        if (condition != null) achievement.setConditionType(condition);
+
+        if (data != null && data.containsKey("conditionValue")) {
+            Integer conditionValue = asInteger(data, "conditionValue");
+            if (conditionValue == null) return Result.failure(400, "conditionValue 必须为数字");
+            achievement.setConditionValue(conditionValue);
         }
-        if (data.containsKey("description")) {
-            achievement.setDescription((String) data.get("description"));
+
+        if (data != null && data.containsKey("rewardExp")) {
+            Integer rewardExp = asInteger(data, "rewardExp");
+            if (rewardExp == null) return Result.failure(400, "rewardExp 必须为数字");
+            achievement.setRewardExp(rewardExp);
         }
-        if (data.containsKey("condition")) {
-            achievement.setConditionType((String) data.get("condition"));
-        }
-        if (data.containsKey("conditionValue")) {
-            achievement.setConditionValue(Integer.valueOf(data.get("conditionValue").toString()));
-        }
-        if (data.containsKey("rewardExp")) {
-            achievement.setRewardExp(Integer.valueOf(data.get("rewardExp").toString()));
-        }
-        if (data.containsKey("icon")) {
-            achievement.setIcon((String) data.get("icon"));
-        }
-        if (data.containsKey("status")) {
-            achievement.setStatus((String) data.get("status"));
-        }
+
+        String icon = asTrimmedString(data, "icon");
+        if (icon != null) achievement.setIcon(icon);
+
+        String status = asTrimmedString(data, "status");
+        if (status != null) achievement.setStatus(status);
+
         achievementMapper.updateById(achievement);
         return Result.success();
     }
@@ -571,13 +626,18 @@ public class AdminController {
     @PostMapping("/assessment/questions")
     public Result<Void> createAssessmentQuestion(@RequestBody Map<String, Object> data) {
         com.xxx.antifraud.entity.RiskQuestion question = new com.xxx.antifraud.entity.RiskQuestion();
-        question.setContent((String) data.get("question"));
-        question.setDimension((String) data.get("dimension"));
-        if (data.get("weight") != null) {
-            question.setWeight(Double.valueOf(data.get("weight").toString()));
-        } else {
-            question.setWeight(1.0);
+        String qText = asTrimmedString(data, "question");
+        String dimension = asTrimmedString(data, "dimension");
+        if (qText == null) return Result.failure(400, "question 为必填字段");
+        if (dimension == null) return Result.failure(400, "dimension 为必填字段");
+        question.setContent(qText);
+        question.setDimension(dimension);
+
+        Double weight = asDouble(data, "weight");
+        if (data != null && data.containsKey("weight") && weight == null) {
+            return Result.failure(400, "weight 必须为数字");
         }
+        question.setWeight(weight != null ? weight : 1.0);
         question.setQuestionType("SINGLE"); // 默认单选
         
         riskQuestionMapper.insert(question);
@@ -589,12 +649,22 @@ public class AdminController {
             for (Map<String, Object> optionData : options) {
                 com.xxx.antifraud.entity.RiskOption option = new com.xxx.antifraud.entity.RiskOption();
                 option.setQuestionId(question.getId());
-                option.setLabel((String) optionData.get("text"));
-                if (optionData.get("score") != null) {
-                    option.setValue(Integer.valueOf(optionData.get("score").toString()));
-                } else {
-                    option.setValue(1);
+                Object t = optionData.get("text");
+                String label = t != null ? t.toString().trim() : null;
+                if (label == null || label.isEmpty()) {
+                    return Result.failure(400, "options.text 为必填字段");
                 }
+                option.setLabel(label);
+                Object scoreObj = optionData.get("score");
+                Integer score = null;
+                if (scoreObj != null) {
+                    try {
+                        score = Integer.valueOf(scoreObj.toString().trim());
+                    } catch (NumberFormatException e) {
+                        return Result.failure(400, "options.score 必须为数字");
+                    }
+                }
+                option.setValue(score != null ? score : 1);
                 riskOptionMapper.insert(option);
             }
         }
@@ -610,18 +680,20 @@ public class AdminController {
             return Result.failure(404, "问题不存在");
         }
         
-        if (data.containsKey("question")) {
-            question.setContent((String) data.get("question"));
+        String qText = asTrimmedString(data, "question");
+        if (qText != null) question.setContent(qText);
+
+        String dimension = asTrimmedString(data, "dimension");
+        if (dimension != null) question.setDimension(dimension);
+
+        if (data != null && data.containsKey("weight")) {
+            Double weight = asDouble(data, "weight");
+            if (weight == null) return Result.failure(400, "weight 必须为数字");
+            question.setWeight(weight);
         }
-        if (data.containsKey("dimension")) {
-            question.setDimension((String) data.get("dimension"));
-        }
-        if (data.containsKey("weight")) {
-            question.setWeight(Double.valueOf(data.get("weight").toString()));
-        }
-        if (data.containsKey("questionType")) {
-            question.setQuestionType((String) data.get("questionType"));
-        }
+
+        String questionType = asTrimmedString(data, "questionType");
+        if (questionType != null) question.setQuestionType(questionType);
         
         riskQuestionMapper.updateById(question);
         
@@ -638,12 +710,23 @@ public class AdminController {
             for (Map<String, Object> optionData : options) {
                 com.xxx.antifraud.entity.RiskOption option = new com.xxx.antifraud.entity.RiskOption();
                 option.setQuestionId(id);
-                option.setLabel((String) optionData.get("text"));
-                if (optionData.get("score") != null) {
-                    option.setValue(Integer.valueOf(optionData.get("score").toString()));
-                } else {
-                    option.setValue(1);
+                Object t = optionData.get("text");
+                String label = t != null ? t.toString().trim() : null;
+                if (label == null || label.isEmpty()) {
+                    return Result.failure(400, "options.text 为必填字段");
                 }
+                option.setLabel(label);
+
+                Object scoreObj = optionData.get("score");
+                Integer score = null;
+                if (scoreObj != null) {
+                    try {
+                        score = Integer.valueOf(scoreObj.toString().trim());
+                    } catch (NumberFormatException e) {
+                        return Result.failure(400, "options.score 必须为数字");
+                    }
+                }
+                option.setValue(score != null ? score : 1);
                 riskOptionMapper.insert(option);
             }
         }
@@ -955,32 +1038,47 @@ public class AdminController {
         Integer highRiskThreshold = null;
         
         if (data.containsKey("lowRiskThreshold")) {
-            lowRiskThreshold = Integer.valueOf(data.get("lowRiskThreshold").toString());
+            lowRiskThreshold = asInteger(data, "lowRiskThreshold");
+            if (lowRiskThreshold == null) return Result.failure(400, "lowRiskThreshold 必须为数字");
         } else if (data.containsKey("riskThresholds")) {
             @SuppressWarnings("unchecked")
             Map<String, Object> thresholds = (Map<String, Object>) data.get("riskThresholds");
             if (thresholds != null && thresholds.containsKey("low")) {
-                lowRiskThreshold = Integer.valueOf(thresholds.get("low").toString());
+                try {
+                    lowRiskThreshold = Integer.valueOf(String.valueOf(thresholds.get("low")).trim());
+                } catch (Exception e) {
+                    return Result.failure(400, "riskThresholds.low 必须为数字");
+                }
             }
         }
         
         if (data.containsKey("mediumRiskThreshold")) {
-            mediumRiskThreshold = Integer.valueOf(data.get("mediumRiskThreshold").toString());
+            mediumRiskThreshold = asInteger(data, "mediumRiskThreshold");
+            if (mediumRiskThreshold == null) return Result.failure(400, "mediumRiskThreshold 必须为数字");
         } else if (data.containsKey("riskThresholds")) {
             @SuppressWarnings("unchecked")
             Map<String, Object> thresholds = (Map<String, Object>) data.get("riskThresholds");
             if (thresholds != null && thresholds.containsKey("medium")) {
-                mediumRiskThreshold = Integer.valueOf(thresholds.get("medium").toString());
+                try {
+                    mediumRiskThreshold = Integer.valueOf(String.valueOf(thresholds.get("medium")).trim());
+                } catch (Exception e) {
+                    return Result.failure(400, "riskThresholds.medium 必须为数字");
+                }
             }
         }
         
         if (data.containsKey("highRiskThreshold")) {
-            highRiskThreshold = Integer.valueOf(data.get("highRiskThreshold").toString());
+            highRiskThreshold = asInteger(data, "highRiskThreshold");
+            if (highRiskThreshold == null) return Result.failure(400, "highRiskThreshold 必须为数字");
         } else if (data.containsKey("riskThresholds")) {
             @SuppressWarnings("unchecked")
             Map<String, Object> thresholds = (Map<String, Object>) data.get("riskThresholds");
             if (thresholds != null && thresholds.containsKey("high")) {
-                highRiskThreshold = Integer.valueOf(thresholds.get("high").toString());
+                try {
+                    highRiskThreshold = Integer.valueOf(String.valueOf(thresholds.get("high")).trim());
+                } catch (Exception e) {
+                    return Result.failure(400, "riskThresholds.high 必须为数字");
+                }
             }
         }
         
@@ -997,5 +1095,57 @@ public class AdminController {
         // 实际使用时可以创建系统配置表来持久化存储
         
         return Result.success();
+    }
+
+    // ==================== 知识页轮播图管理 ====================
+
+    @Operation(summary = "获取全部轮播图列表")
+    @GetMapping("/carousel")
+    public Result<List<Carousel>> listCarousel() {
+        return Result.success(carouselService.listAll());
+    }
+
+    @Operation(summary = "新增轮播图（图片地址为 URL 或本地上传后的路径）")
+    @PostMapping("/carousel")
+    public Result<Long> createCarousel(@RequestBody Map<String, Object> data) {
+        String imageUrl = data.get("imageUrl") != null ? data.get("imageUrl").toString() : null;
+        String title = data.get("title") != null ? data.get("title").toString() : null;
+        String linkUrl = data.get("linkUrl") != null ? data.get("linkUrl").toString() : null;
+        Integer sortOrder = data.get("sortOrder") != null ? Integer.valueOf(data.get("sortOrder").toString()) : 0;
+        Long id = carouselService.create(imageUrl, title, linkUrl, sortOrder);
+        return Result.success(id);
+    }
+
+    @Operation(summary = "更新轮播图")
+    @PutMapping("/carousel/{id}")
+    public Result<Void> updateCarousel(@PathVariable Long id, @RequestBody Map<String, Object> data) {
+        String imageUrl = data.get("imageUrl") != null ? data.get("imageUrl").toString() : null;
+        String title = data.get("title") != null ? data.get("title").toString() : null;
+        String linkUrl = data.get("linkUrl") != null ? data.get("linkUrl").toString() : null;
+        Integer sortOrder = data.get("sortOrder") != null ? Integer.valueOf(data.get("sortOrder").toString()) : null;
+        Integer enableFlag = data.get("enableFlag") != null ? Integer.valueOf(data.get("enableFlag").toString()) : null;
+        carouselService.update(id, imageUrl, title, linkUrl, sortOrder, enableFlag);
+        return Result.success();
+    }
+
+    @Operation(summary = "删除轮播图")
+    @DeleteMapping("/carousel/{id}")
+    public Result<Void> deleteCarousel(@PathVariable Long id) {
+        carouselService.delete(id);
+        return Result.success();
+    }
+
+    @Operation(summary = "本地上传轮播图图片（单张）")
+    @PostMapping("/carousel/upload")
+    public Result<Map<String, String>> uploadCarouselImage(@RequestParam("file") MultipartFile file) {
+        String url = carouselService.uploadImage(file);
+        return Result.success(Map.of("url", url));
+    }
+
+    @Operation(summary = "本地上传轮播图图片（多张）")
+    @PostMapping("/carousel/upload/batch")
+    public Result<List<String>> uploadCarouselImages(@RequestParam("files") MultipartFile[] files) {
+        List<String> urls = carouselService.uploadImages(files != null ? java.util.Arrays.asList(files) : java.util.Collections.emptyList());
+        return Result.success(urls);
     }
 }
