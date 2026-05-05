@@ -1,9 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
-import casesJson from './data/cases.json' assert { type: 'json' };
-import knowledgeJson from './data/knowledge.json' assert { type: 'json' };
-import questionsJson from './data/questions.json' assert { type: 'json' };
+import casesJson from './data/cases.json' with { type: 'json' };
+import knowledgeJson from './data/knowledge.json' with { type: 'json' };
+import questionsJson from './data/questions.json' with { type: 'json' };
 
 const app = express();
 app.use(cors());

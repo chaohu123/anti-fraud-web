@@ -1,0 +1,48 @@
+[
+    {
+        "id": 1,
+        "type": "sms",
+        "content": "【银行】点击 http://fake.com 验证账户，否则将冻结账号。",
+        "hint": "仿冒机构 + 钓鱼链接 + 恐吓催促",
+        "suspiciousPoints": ["非官方域名/短链", "恐吓语气催促立即操作"],
+        "level": "easy",
+        "answer": "fraud"
+    },
+    {
+        "id": 2,
+        "type": "email",
+        "content": "发票查验通知，请下载附件 patch.exe 并安装补丁。",
+        "hint": "诱导安装可执行文件",
+        "suspiciousPoints": ["要求安装未知 exe", "紧急语气催促“立刻安装”"],
+        "level": "medium",
+        "answer": "fraud"
+    },
+    {
+        "id": 3,
+        "type": "audio",
+        "content": "自称客服要求语音提供验证码并“远程协助”。",
+        "hint": "索要验证码/远程控制",
+        "suspiciousPoints": ["索要验证码", "诱导安装远程软件"],
+        "level": "hard",
+        "answer": "fraud"
+    },
+    {
+        "id": 4,
+        "type": "site",
+        "content": "登录页域名类似 bank-cn-login.com，页面要求输入短信验证码。",
+        "hint": "山寨域名/仿冒登录页",
+        "suspiciousPoints": ["域名伪装", "异常跳转/证书不可信"],
+        "level": "medium",
+        "mediaUrl": "https://via.placeholder.com/800x450.png?text=Fake+Site+Screenshot",
+        "answer": "fraud"
+    },
+    {
+        "id": 5,
+        "type": "sms",
+        "content": "【快递】您的包裹已到站，请通过官方小程序查询取件码。",
+        "hint": "来源与动作合理，建议仍核验官方入口",
+        "suspiciousPoints": ["提醒：通过官方入口操作"],
+        "level": "easy",
+        "answer": "safe"
+    }
+]
