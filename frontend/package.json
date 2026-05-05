@@ -4,11 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
+    "dev": "node ./node_modules/vite/bin/vite.js",
+    "build": "node ./node_modules/vite/bin/vite.js build",
+    "preview": "node ./node_modules/vite/bin/vite.js preview",
     "postinstall": "node ./node_modules/patch-package/index.js",
-    "lint": "vue-tsc --noEmit && vite build --ssr"
+    "lint": "node ./node_modules/vue-tsc/bin/vue-tsc.js --noEmit && node ./node_modules/vite/bin/vite.js build --ssr"
   },
   "dependencies": {
     "patch-package": "^8.0.0",
