@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "title": "警惕冒充客服退款诈骗",
+    "imageUrl": "https://picsum.photos/seed/antifraud1/1200/400",
+    "linkUrl": "",
+    "sortOrder": 0,
+    "enableFlag": 1
+  },
+  {
+    "id": 2,
+    "title": "投资理财高收益多为陷阱",
+    "imageUrl": "https://picsum.photos/seed/antifraud2/1200/400",
+    "linkUrl": "",
+    "sortOrder": 1,
+    "enableFlag": 1
+  },
+  {
+    "id": 3,
+    "title": "完成防骗测评，了解自身风险暴露",
+    "imageUrl": "https://picsum.photos/seed/antifraud3/1200/400",
+    "linkUrl": "",
+    "sortOrder": 2,
+    "enableFlag": 1
+  }
+]

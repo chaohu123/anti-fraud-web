@@ -1,0 +1,42 @@
+[
+  {
+    "id": 1,
+    "name": "初出茅庐",
+    "description": "完成 3 次识别训练",
+    "condition": "TRAINING_COUNT",
+    "conditionValue": 3,
+    "rewardExp": 30,
+    "icon": "🎯",
+    "status": "ACTIVE"
+  },
+  {
+    "id": 2,
+    "name": "勤学苦练",
+    "description": "完成 10 次识别训练",
+    "condition": "TRAINING_COUNT",
+    "conditionValue": 10,
+    "rewardExp": 80,
+    "icon": "📚",
+    "status": "ACTIVE"
+  },
+  {
+    "id": 3,
+    "name": "知识达人",
+    "description": "学完 5 篇防骗知识",
+    "condition": "LEARNING_COUNT",
+    "conditionValue": 5,
+    "rewardExp": 50,
+    "icon": "📖",
+    "status": "ACTIVE"
+  },
+  {
+    "id": 4,
+    "name": "心中有数",
+    "description": "完成 1 次风险测评",
+    "condition": "ASSESSMENT_COMPLETE",
+    "conditionValue": 1,
+    "rewardExp": 40,
+    "icon": "📊",
+    "status": "ACTIVE"
+  }
+]

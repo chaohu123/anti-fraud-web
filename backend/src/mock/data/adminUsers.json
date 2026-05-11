@@ -1,0 +1,35 @@
+[
+  {
+    "id": 1,
+    "username": "demo",
+    "nickname": "演示账号",
+    "email": "demo@example.com",
+    "avatar": null,
+    "level": 3,
+    "exp": 320,
+    "riskLevel": "LOW",
+    "createdAt": "2026-01-15T08:00:00.000Z"
+  },
+  {
+    "id": 2,
+    "username": "student01",
+    "nickname": "张同学",
+    "email": "student01@example.com",
+    "avatar": null,
+    "level": 2,
+    "exp": 180,
+    "riskLevel": "MEDIUM",
+    "createdAt": "2026-02-20T10:30:00.000Z"
+  },
+  {
+    "id": 3,
+    "username": "student02",
+    "nickname": "李同学",
+    "email": "student02@example.com",
+    "avatar": null,
+    "level": 4,
+    "exp": 560,
+    "riskLevel": "HIGH",
+    "createdAt": "2026-03-01T14:15:00.000Z"
+  }
+]
